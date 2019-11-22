@@ -14,7 +14,7 @@ jobs:
     - name: build
       run: cd build && ninja
     - name: check
-      run: cd build && ninja check
+      run: cd build && ninja check && ../install/volk_gnsssdr_profile && ../install/run_tests
 
 
   build-macos:
@@ -28,4 +28,4 @@ jobs:
     - name: build
       run: cd build && ninja
     - name: check
-      run: cd build && ninja check
+      run: cd build && ninja check && ../install/volk_gnsssdr_profile && ../install/run_tests

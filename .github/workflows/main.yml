@@ -13,10 +13,13 @@ jobs:
   build-ubuntu:
     runs-on: ubuntu-latest
     steps:
+    - name: Display the path
+      run: echo $PATH && ls
+      shell: bash
     - name: install-dependencies
       run: sudo install build-essential cmake git libboost-dev libboost-date-time-dev libboost-system-dev libboost-filesystem-dev libboost-thread-dev libboost-chrono-dev libboost-serialization-dev liblog4cpp5-dev gnuradio-dev gr-osmosdr libpugixml-dev libpcap-dev libblas-dev liblapack-dev libarmadillo-dev libgflags-dev libgoogle-glog-dev libgnutls-openssl-dev python-mako python-six libmatio-dev googletest libprotobuf-dev protobuf-compiler
     - name: configure
-      run: cmake $GITHUB_WORKSPACE
+      run: cd build cmake ..
     - name: make
       run: make
     - name: make check
@@ -29,7 +32,7 @@ jobs:
     - name: install-dependencies
       run: sudo easy_install pip && brew install cmake pkg-config hdf5 armadillo lapack gflags glog gnuradio libmatio log4cpp openssl pugixml protobuf && pip install mako && pip install six
     - name: configure
-      run: cmake -GXcode $GITHUB_WORKSPACE
+      run: cd build && cmake -GXcode ..
     - name: make
       run: xcodebuild
     - name: make check

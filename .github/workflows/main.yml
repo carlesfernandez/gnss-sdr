@@ -1,13 +1,6 @@
-on: 
-  push:
-    branches:
-    - master
-    - next
-    - test-ci
-  pull_request:
-    branches:
-    - next
+name: Simple CI
 
+on: [push, pull_request]
 
 jobs:
   build-ubuntu:
@@ -18,9 +11,9 @@ jobs:
       run: sudo apt-get install build-essential ninja-build cmake git libboost-dev libboost-date-time-dev libboost-system-dev libboost-filesystem-dev libboost-thread-dev libboost-chrono-dev libboost-serialization-dev liblog4cpp5-dev gnuradio-dev gr-osmosdr libpugixml-dev libpcap-dev libblas-dev liblapack-dev libarmadillo-dev libgflags-dev libgoogle-glog-dev libgnutls-openssl-dev python-mako python-six libmatio-dev googletest protobuf-compiler libprotobuf-dev 
     - name: configure
       run: cd build && cmake -GNinja ..
-    - name: make
+    - name: build
       run: cd build && ninja
-    - name: make check
+    - name: check
       run: cd build && ninja check
 
 
@@ -29,10 +22,10 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: install-dependencies
-      run: sudo easy_install pip && brew install cmake ninja pkg-config hdf5 armadillo lapack gflags glog gnuradio libmatio log4cpp openssl pugixml protobuf && pip install mako && pip install six
+      run: sudo easy_install pip && brew install ninja pkg-config hdf5 armadillo lapack gflags glog gnuradio libmatio log4cpp pugixml protobuf && pip install mako && pip install six
     - name: configure
       run: cd build && cmake -GNinja ..
-    - name: make
+    - name: build
       run: cd build && ninja
-    - name: make check
+    - name: check
       run: cd build && ninja check

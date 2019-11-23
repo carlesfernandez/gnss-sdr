@@ -43,9 +43,9 @@ jobs:
         pip install mako six
     - name: configure-volk
       shell: powershell
-      run: cd build & cmake -G "Visual Studio 16 2019" ../src/algorithms/libs/volk_gnsssdr_module/volk_gnsssdr
+      run: cd build; cmake -G "Visual Studio 16 2019" ../src/algorithms/libs/volk_gnsssdr_module/volk_gnsssdr
     - name: run-volk   
       run: cmake --build build --config Release
     - name: test
       shell: powershell
-      run: cd build & ctest
+      run: cd build; ctest

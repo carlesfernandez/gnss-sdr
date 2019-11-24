@@ -33,6 +33,7 @@
 #ifndef GNSS_SDR_DLL_PLL_CONF_H_
 #define GNSS_SDR_DLL_PLL_CONF_H_
 
+#include "configuration_interface.h"
 #include <cstdint>
 #include <string>
 
@@ -47,10 +48,12 @@ public:
     unsigned int bit_synchronization_time_limit_s;
     int pll_filter_order;
     int dll_filter_order;
+    int aided_dll_filter_order;
     double fs_in;
     uint32_t vector_length;
     bool dump;
     bool dump_mat;
+    bool aid_code_with_carrier;
     std::string dump_filename;
     float pll_pull_in_bw_hz;
     float dll_pull_in_bw_hz;
@@ -67,6 +70,8 @@ public:
     float spc;
     int32_t extend_correlation_symbols;
     bool high_dyn;
+    std::string item_type;
+    std::string local_replica_item_type;
     int32_t cn0_samples;
     int32_t cn0_smoother_samples;
     float cn0_smoother_alpha;
@@ -83,6 +88,8 @@ public:
     char signal[3]{};
 
     Dll_Pll_Conf();
+
+    void SetFromConfiguration(ConfigurationInterface *configuration, const std::string &role);
 };
 
 #endif

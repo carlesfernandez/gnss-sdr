@@ -123,9 +123,7 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: install dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        python3 -m pip install setuptools Mako
+      run: sudo apt get install python3-mako
     - name: configure
       run: cd build && cmake ../src/algorithms/libs/volk_gnsssdr_module/volk_gnsssdr
     - name: build

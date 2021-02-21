@@ -280,7 +280,12 @@ endif()
 
 # Python
 include(VolkPython) # sets PYTHON_EXECUTABLE
-volk_python_check_module("python >= 2.7" sys "sys.version.split()[0] >= '2.7'" PYTHON_MIN_VER_FOUND)
+if(Python3_FOUND OR PYTHON_VERSION_MAJOR VERSION_GREATER 2)
+    volk_python_check_module("python >= 3.4" sys "sys.version_info >= (3, 4)" PYTHON_MIN_VER_FOUND)
+else()
+    volk_python_check_module("python >= 2.7" sys "sys.version.split()[0] >= '2.7'" PYTHON_MIN_VER_FOUND)
+endif()
+
 volk_python_check_module("mako >= 0.4.2" mako "mako.__version__ >= '0.4.2'" MAKO_FOUND)
 if(Python2_VERSION OR (PYTHON_VERSION_STRING VERSION_LESS "3.0"))
     volk_python_check_module("six - python 2 and 3 compatibility library" six "True" SIX_FOUND)

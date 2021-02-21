@@ -126,16 +126,18 @@ function(VOLK_ADD_TEST test_name executable_name)
     #generate a shell script file that sets the environment and runs the test
     set(sh_file ${CMAKE_CURRENT_BINARY_DIR}/${test_name}_test.sh)
     file(WRITE ${sh_file} "#!${SHELL}\n")
-    if(SHELL_SUPPORTS_IFS)
-      file(APPEND ${sh_file} "export IFS=:\n")
-    else()
-      file(APPEND ${sh_file} "LL=\"$1\" && for tf in \"\$@\"; do LL=\"\${LL}:\${tf}\"; done\n")
-    endif()
+    if(NOT CMAKE_CROSSCOMPILING)
+      if(SHELL_SUPPORTS_IFS)
+        file(APPEND ${sh_file} "export IFS=:\n")
+      else()
+        file(APPEND ${sh_file} "LL=\"$1\" && for tf in \"\$@\"; do LL=\"\${LL}:\${tf}\"; done\n")
+      endif()
 
-    #each line sets an environment variable
-    foreach(environ ${environs})
-      file(APPEND ${sh_file} "export ${environ}\n")
-    endforeach()
+      #each line sets an environment variable
+      foreach(environ ${environs})
+        file(APPEND ${sh_file} "export ${environ}\n")
+      endforeach()
+    endif()
 
     set(VOLK_TEST_ARGS "${test_name}")
 
@@ -154,10 +156,15 @@ function(VOLK_ADD_TEST test_name executable_name)
     #add the shell file as the test to execute;
     #use the form that allows for $<FOO:BAR> substitutions,
     #then combine the script arguments inside the script.
-    add_test(NAME qa_${test_name}
-      COMMAND ${SHELL} ${sh_file} ${TARGET_DIR_LIST}
-    )
-
+    if(NOT CMAKE_CROSSCOMPILING)
+      add_test(NAME qa_${test_name}
+        COMMAND ${SHELL} ${sh_file} ${TARGET_DIR_LIST}
+      )
+    else()
+      add_test(NAME qa_${test_name}
+        COMMAND ${SHELL} ${test_name}_test.sh ${TARGET_DIR_LIST}
+      )
+    endif()
   endif()
 
   if(WIN32)

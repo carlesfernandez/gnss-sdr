@@ -280,7 +280,7 @@ endif()
 
 # Python
 include(VolkPython) # sets PYTHON_EXECUTABLE
-if(Python3_FOUND OR PYTHON_VERSION_MAJOR VERSION_GREATER 2)
+if(Python3_FOUND OR PYTHON_VERSION_MAJOR VERSION_GREATER "2")
     volk_python_check_module("python >= 3.4" sys "sys.version_info >= (3, 4)" PYTHON_MIN_VER_FOUND)
 else()
     volk_python_check_module("python >= 2.7" sys "sys.version.split()[0] >= '2.7'" PYTHON_MIN_VER_FOUND)

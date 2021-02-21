@@ -122,10 +122,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - name: install dependencies
-      run: |
-        pip3 install --upgrade pip
-        pip3 install Mako
     - name: configure
       run: cd build && cmake ../src/algorithms/libs/volk_gnsssdr_module/volk_gnsssdr
     - name: build

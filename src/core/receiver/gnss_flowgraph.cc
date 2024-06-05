@@ -41,7 +41,6 @@
 #include "signal_source_interface.h"
 #include <boost/lexical_cast.hpp>    // for boost::lexical_cast
 #include <boost/tokenizer.hpp>       // for boost::tokenizer
-#include <glog/logging.h>            // for LOG
 #include <gnuradio/basic_block.h>    // for basic_block
 #include <gnuradio/filter/firdes.h>  // for gr::filter::firdes
 #include <gnuradio/io_signature.h>   // for io_signature
@@ -59,6 +58,12 @@
 #include <stdexcept>                 // for invalid_argument
 #include <thread>                    // for std::thread
 #include <utility>                   // for std::move
+
+#if USE_GLOG_AND_GFLAGS
+#include <glog/logging.h>
+#else
+#include <absl/log/log.h>
+#endif
 
 #ifdef GR_GREATER_38
 #include <gnuradio/filter/fir_filter_blk.h>
@@ -273,7 +278,7 @@ void GNSSFlowgraph::init()
         }
 
     /*
-     * Instantiate the receiver av message monitor block, if required
+     * Instantiate the receiver nav message monitor block, if required
      */
     enable_navdata_monitor_ = configuration_->property("NavDataMonitor.enable_monitor", false);
     if (enable_navdata_monitor_)
@@ -991,7 +996,7 @@ int GNSSFlowgraph::connect_signal_sources_to_signal_conditioners()
                                         }
                                     else
                                         {
-                                            if (j == 0)
+                                            if (j == 0 || !src->get_right_block(j))
                                                 {
                                                     // RF_channel 0 backward compatibility with single channel sources
                                                     LOG(INFO) << "connecting sig_source_ " << i << " stream " << 0 << " to conditioner " << signal_conditioner_ID;
@@ -2247,7 +2252,7 @@ void GNSSFlowgraph::set_signals_list()
 
     std::string sv_list = configuration_->property("Galileo.prns", std::string(""));
 
-    if (sv_list.length() > 0)
+    if (!sv_list.empty())
         {
             // Reset the available prns:
             std::set<unsigned int> tmp_set;
@@ -2287,7 +2292,7 @@ void GNSSFlowgraph::set_signals_list()
 
     sv_list = configuration_->property("GPS.prns", std::string(""));
 
-    if (sv_list.length() > 0)
+    if (!sv_list.empty())
         {
             // Reset the available prns:
             std::set<unsigned int> tmp_set;
@@ -2327,7 +2332,7 @@ void GNSSFlowgraph::set_signals_list()
 
     sv_list = configuration_->property("SBAS.prns", std::string(""));
 
-    if (sv_list.length() > 0)
+    if (!sv_list.empty())
         {
             // Reset the available prns:
             std::set<unsigned int> tmp_set;
@@ -2367,7 +2372,7 @@ void GNSSFlowgraph::set_signals_list()
 
     sv_list = configuration_->property("Glonass.prns", std::string(""));
 
-    if (sv_list.length() > 0)
+    if (!sv_list.empty())
         {
             // Reset the available prns:
             std::set<unsigned int> tmp_set;
@@ -2407,7 +2412,7 @@ void GNSSFlowgraph::set_signals_list()
 
     sv_list = configuration_->property("Beidou.prns", std::string(""));
 
-    if (sv_list.length() > 0)
+    if (!sv_list.empty())
         {
             // Reset the available prns:
             std::set<unsigned int> tmp_set;

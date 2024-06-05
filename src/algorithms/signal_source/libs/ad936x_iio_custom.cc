@@ -15,7 +15,6 @@
 #include "ad936x_iio_custom.h"
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
-#include <glog/logging.h>
 #include <chrono>
 #include <cmath>
 #include <fstream>
@@ -23,6 +22,12 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#if USE_GLOG_AND_GFLAGS
+#include <glog/logging.h>
+#else
+#include <absl/log/log.h>
+#endif
 
 ad936x_iio_custom::ad936x_iio_custom(int debug_level_, int log_level_)
 {
@@ -171,7 +176,7 @@ void ad936x_iio_custom::configure_params(struct iio_device *phy,
             pos = it->find('=');
             if (pos == std::string::npos)
                 {
-                    std::cerr << "Misformed line: " << *it << std::endl;
+                    std::cerr << "Malformed line: " << *it << std::endl;
                     continue;
                 }
 
@@ -686,7 +691,7 @@ bool ad936x_iio_custom::init_config_ad9361_rx(long long bandwidth_,
         }
 
     std::cout << "AD936x Front-end configuration summary: \n";
-    std::cout << "RF frequency tunned in AD936x: " << freq_ << " [Hz]\n";
+    std::cout << "RF frequency tuned in AD936x: " << freq_ << " [Hz]\n";
     std::cout << "Baseband sampling frequency: " << sample_rate_sps << " [SPS]\n";
     std::cout << "RX chain gain: " << rf_gain_rx0_ << " [dB][only valid in manual mode]\n";
     std::cout << "RX chain gain mode: " << gain_mode_rx0_ << "\n";

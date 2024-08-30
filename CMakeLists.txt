@@ -3730,14 +3730,6 @@ add_subdirectory(src)
 add_feature_info(ENABLE_UHD ENABLE_UHD "Enables UHD_Signal_Source for using RF front-ends from the USRP family. Requires gr-uhd.")
 add_feature_info(ENABLE_OSMOSDR ENABLE_OSMOSDR "Enables Osmosdr_Signal_Source and RtlTcp_Signal_Source for using RF front-ends compatible with the OsmoSDR driver. Requires gr-osmosdr.")
 add_feature_info(ENABLE_LIMESDR ENABLE_LIMESDR "Enables Limesdr_Signal_Source. Requires gr-limesdr.")
-<<<<<<< HEAD
-add_feature_info(ENABLE_FMCOMMS2 ENABLE_FMCOMMS2 "Enables Fmcomms2_Signal_Source for FMCOMMS2/3/4 devices. Requires gr-iio and libad9361-dev.")
-add_feature_info(ENABLE_PLUTOSDR ENABLE_PLUTOSDR "Enables Plutosdr_Signal_Source for using ADALM-PLUTO boards. Requires gr-iio.")
-add_feature_info(ENABLE_AD9361 ENABLE_AD9361 "Enables Ad9361_Fpga_Signal_Source for devices with the AD9361 chipset. Requires libiio and libad9361-dev.")
-add_feature_info(ENABLE_MAX2771 ENABLE_MAX2771 "Enables FPGA_MAX2771_EVKIT_Signal_Source for devices with the MAX2771 chipset. Requires the spidev driver")
-add_feature_info(ENABLE_DMA_PROXY ENABLE_DMA_PROXY "Enables DMA Signal_Source. Requires the DMA Proxy driver")
-add_feature_info(ENABLE_AD936X_SDR ENABLE_AD936X_SDR "Enables Ad936x_Iio_Signal_Source to access AD936X front-ends using libiio. Requires libiio and libad9361-dev.")
-=======
 add_feature_info(ENABLE_FMCOMMS2 ENABLE_FMCOMMS2 "Enables Fmcomms2_Signal_Source for FMCOMMS2/3/4 devices. Requires libiio, libad9361-dev, and gr-iio.")
 add_feature_info(ENABLE_PLUTOSDR ENABLE_PLUTOSDR "Enables Plutosdr_Signal_Source and Ad936x_Custom_Signal_Source for using ADALM-PLUTO boards. Requires libiio, libad9361-dev, and gr-iio.")
 add_feature_info(ENABLE_AD936X_SDR ENABLE_AD936X_SDR "Enables Ad936x_Custom_Signal_Source for using ADALM-PLUTO boards with custom firmware. Requires libiio and libad9361-dev.")
@@ -3745,7 +3737,6 @@ add_feature_info(ENABLE_FPGA ENABLE_FPGA "Enables building of processing blocks 
 add_feature_info(ENABLE_AD9361 ENABLE_AD9361 "Enables ADRV9361_Z7035_Signal_Source_FPGA and the FMCOMMS5_Signal_Source_FPGA for FPGA SoC devices with the AD9361 chipset. Requires libiio, libad9361-dev, and -DENABLE_FPGA=ON.")
 add_feature_info(ENABLE_MAX2771 ENABLE_MAX2771 "Enables FPGA_MAX2771_EVKIT_Signal_Source for FPGA SoC devices with the with the MAX2771 chipset. Requires the spidev driver and -DENABLE_FPGA=ON.")
 add_feature_info(ENABLE_DMA_PROXY ENABLE_DMA_PROXY "Enables DMA_Signal_Source_FPGA for file post-processing in FPGA SoC devices. Requires the DMA Proxy driver and -DENABLE_FPGA=ON.")
->>>>>>> 792ec38989a057b75e061b05846f25064a124983
 add_feature_info(ENABLE_RAW_UDP ENABLE_RAW_UDP "Enables Custom_UDP_Signal_Source for custom UDP packet sample source. Requires libpcap.")
 add_feature_info(ENABLE_FLEXIBAND ENABLE_FLEXIBAND "Enables Flexiband_Signal_Source for using Teleorbit's Flexiband RF front-end. Requires gr-teleorbit.")
 add_feature_info(ENABLE_ARRAY ENABLE_ARRAY "Enables Raw_Array_Signal_Source and Array_Signal_Conditioner for using CTTC's antenna array. Requires gr-dbfcttc.")

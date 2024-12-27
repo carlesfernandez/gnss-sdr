@@ -15,7 +15,6 @@
  */
 
 #include "gnss_satellite.h"
-#include <exception>
 #include <utility>
 
 #if USE_GLOG_AND_GFLAGS
@@ -79,16 +78,23 @@ bool operator==(const Gnss_Satellite& sat1, const Gnss_Satellite& sat2)
 
 // Copy constructor
 Gnss_Satellite::Gnss_Satellite(const Gnss_Satellite& other) noexcept
-try : system(other.system),
-      block(other.block),
-      PRN(other.PRN),
+    : PRN(other.PRN),
       rf_link(other.rf_link)
-    {
-    }
-catch (...)
-    {
-        std::terminate();
-    }
+{
+    try
+        {
+            system = other.system;
+            block = other.block;
+        }
+    catch (...)
+        {
+            // Handle failure by creating a valid but empty object
+            system.clear();
+            block.clear();
+            PRN = 0;
+            rf_link = 0;
+        }
+}
 
 
 // Copy assignment operator

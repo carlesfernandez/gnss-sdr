@@ -78,10 +78,7 @@ if(NOT MACOS_DISTRIBUTION)
     set(MACOS_DISTRIBUTION "macOS (Unknown version)")
 endif()
 
-# Detect if the "brew --prefix" command is valid on this system; if so, return full path
 execute_process(COMMAND brew --prefix RESULT_VARIABLE DETECT_HOMEBREW OUTPUT_VARIABLE HOMEBREW_PREFIX ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
 if(${DETECT_HOMEBREW} EQUAL 0)
-    get_filename_component(HOMEBREW_PREFIX ${HOMEBREW_PREFIX} DIRECTORY)
     message(STATUS "Homebrew detected at ${HOMEBREW_PREFIX}")
-    message(STATUS "Homebrew detected at ${RESULT_VARIABLE}")
 endif()

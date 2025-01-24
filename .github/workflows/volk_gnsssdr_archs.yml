@@ -16,7 +16,7 @@ on:
 
 jobs:
   build-ubuntu-non-x86:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     name: ${{ matrix.distro }} ${{ matrix.arch }} ${{ matrix.compiler.name }}
 
     # Run steps on a matrix of archs.
@@ -25,23 +25,23 @@ jobs:
       matrix:
         include:
           - arch: aarch64
-            distro: ubuntu24.04
-            compiler: { name: g++-14, cc: gcc-14, cxx: g++-14 }
+            distro: ubuntu22.04
+            compiler: { name: g++-12, cc: gcc-12, cxx: g++-12 }
           - arch: aarch64
-            distro: ubuntu24.04
-            compiler: { name: clang-18, cc: clang-18, cxx: clang++-18 }
+            distro: ubuntu22.04
+            compiler: { name: clang-14, cc: clang-14, cxx: clang++-14 }
           - arch: armv7
-            distro: ubuntu24.04
-            compiler: { name: g++-14, cc: gcc-14, cxx: g++-14 }
+            distro: ubuntu22.04
+            compiler: { name: g++-12, cc: gcc-12, cxx: g++-12 }
           - arch: ppc64le
-            distro: ubuntu24.04
-            compiler: { name: g++-14, cc: gcc-14, cxx: g++-14 }
+            distro: ubuntu22.04
+            compiler: { name: g++-12, cc: gcc-12, cxx: g++-12 }
           - arch: s390x
-            distro: ubuntu24.04
-            compiler: { name: g++-14, cc: gcc-14, cxx: g++-14 }
+            distro: ubuntu22.04
+            compiler: { name: g++-12, cc: gcc-12, cxx: g++-12 }
           - arch: riscv64
-            distro: ubuntu24.04
-            compiler: { name: g++-14, cc: gcc-14, cxx: g++-14 }
+            distro: ubuntu22.04
+            compiler: { name: g++-12, cc: gcc-12, cxx: g++-12 }
 
     steps:
       - uses: actions/checkout@v4

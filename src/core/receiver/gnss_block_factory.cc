@@ -114,10 +114,11 @@
 #include "tracking_interface.h"
 #include "two_bit_cpx_file_signal_source.h"
 #include "two_bit_packed_file_signal_source.h"
-#include <cstdlib>    // for exit
-#include <exception>  // for exception
-#include <iostream>   // for cerr
-#include <utility>    // for move
+#include <cstdlib>      // for exit
+#include <exception>    // for exception
+#include <iostream>     // for cerr
+#include <type_traits>  // for std::is_polymorphic
+#include <utility>      // for move
 
 #if USE_GLOG_AND_GFLAGS
 #include <glog/logging.h>
@@ -213,17 +214,18 @@ namespace
 auto const impl_prop = ".implementation"s;  // "implementation" property; used nearly universally
 auto const item_prop = ".item_type"s;       // "item_type" property
 
-// unique_ptr dynamic cast from https://stackoverflow.com/a/26377517/9220132
 template <typename To, typename From>
 std::unique_ptr<To> dynamic_unique_cast(std::unique_ptr<From>&& p)
 {
-    if (To* cast = dynamic_cast<To*>(p.get()))
+    // Ensure that From is a polymorphic type (i.e., has at least one virtual function)
+    static_assert(std::is_polymorphic<From>::value, "From must be a polymorphic type");
+
+    if (auto* cast = dynamic_cast<To*>(p.get()))
         {
-            std::unique_ptr<To> result(cast);
             p.release();  // NOLINT(bugprone-unused-return-value)
-            return result;
+            return std::unique_ptr<To>(cast);
         }
-    return std::unique_ptr<To>(nullptr);
+    return nullptr;  // Return an empty unique_ptr if the cast fails
 }
 
 

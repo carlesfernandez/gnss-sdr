@@ -222,7 +222,7 @@ std::unique_ptr<To> dynamic_unique_cast(std::unique_ptr<From>&& p)
 
     if (auto* cast = dynamic_cast<To*>(p.get()))
         {
-            p.release();  // NOLINT(bugprone-unused-return-value)
+            p.release();
             return std::unique_ptr<To>(cast);
         }
     return nullptr;  // Return an empty unique_ptr if the cast fails

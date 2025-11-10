@@ -80,6 +80,13 @@ public:
     bool high_dyn{false};
     bool dump{false};
     bool dump_mat{true};
+
+    // GLONASS-specific configuration
+    int32_t glonass_frequency_slot{0};
+    double glonass_nominal_carrier_hz{0.0};
+    double glonass_carrier_spacing_hz{0.0};
+    double glonass_code_rate_cps{0.0};
+    double glonass_code_length_chips{0.0};
 };
 
 

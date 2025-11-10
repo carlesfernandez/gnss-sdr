@@ -30,9 +30,12 @@
 #include "Galileo_E5a.h"
 #include "Galileo_E5b.h"
 #include "Galileo_E6.h"
+#include "GLONASS_L1_L2_CA.h"
 #include "MATH_CONSTANTS.h"
 #include "beidou_b1i_signal_replica.h"
 #include "beidou_b3i_signal_replica.h"
+#include "glonass_l1_signal_replica.h"
+#include "glonass_l2_signal_replica.h"
 #include "galileo_e1_signal_replica.h"
 #include "galileo_e5_signal_replica.h"
 #include "galileo_e6_signal_replica.h"
@@ -95,6 +98,7 @@ dll_pll_veml_tracking::dll_pll_veml_tracking(const Dll_Pll_Conf &conf_)
       d_acq_carrier_doppler_hz(0.0),
       d_current_correlation_time_s(0.0),
       d_carrier_doppler_hz(0.0),
+      d_initial_code_freq_chips(0.0),
       d_acc_carrier_phase_rad(0.0),
       d_rem_code_phase_chips(0.0),
       d_T_chip_seconds(0.0),
@@ -393,6 +397,82 @@ dll_pll_veml_tracking::dll_pll_veml_tracking(const Dll_Pll_Conf &conf_)
                     d_symbols_per_bit = 0;
                 }
         }
+    else if (d_trk_parameters.system == 'R')
+        {
+            d_systemName = "GLONASS";
+            if (d_signal_type == "1G")
+                {
+                    if (d_trk_parameters.glonass_nominal_carrier_hz <= 0.0)
+                        {
+                            d_trk_parameters.glonass_nominal_carrier_hz = GLONASS_L1_CA_FREQ_HZ;
+                        }
+                    if (d_trk_parameters.glonass_carrier_spacing_hz == 0.0)
+                        {
+                            d_trk_parameters.glonass_carrier_spacing_hz = GLONASS_L1_CA_DFREQ_HZ;
+                        }
+                    if (d_trk_parameters.glonass_code_rate_cps <= 0.0)
+                        {
+                            d_trk_parameters.glonass_code_rate_cps = GLONASS_L1_CA_CODE_RATE_CPS;
+                        }
+                    if (d_trk_parameters.glonass_code_length_chips <= 0.0)
+                        {
+                            d_trk_parameters.glonass_code_length_chips = GLONASS_L1_CA_CODE_LENGTH_CHIPS;
+                        }
+                    d_signal_carrier_freq = d_trk_parameters.glonass_nominal_carrier_hz;
+                    d_code_chip_rate = d_trk_parameters.glonass_code_rate_cps;
+                    d_code_length_chips = static_cast<int32_t>(std::llround(d_trk_parameters.glonass_code_length_chips));
+                    d_code_period = d_trk_parameters.glonass_code_length_chips / d_trk_parameters.glonass_code_rate_cps;
+                    d_correlation_length_ms = 1;
+                    d_symbols_per_bit = GLONASS_GNAV_TELEMETRY_SYMBOLS_PER_BIT;
+                    d_code_samples_per_chip = 1;
+                    d_secondary = false;
+                    d_trk_parameters.track_pilot = false;
+                    d_secondary_code_length = 0U;
+                    d_data_secondary_code_length = 0U;
+                }
+            else if (d_signal_type == "2G")
+                {
+                    if (d_trk_parameters.glonass_nominal_carrier_hz <= 0.0)
+                        {
+                            d_trk_parameters.glonass_nominal_carrier_hz = GLONASS_L2_CA_FREQ_HZ;
+                        }
+                    if (d_trk_parameters.glonass_carrier_spacing_hz == 0.0)
+                        {
+                            d_trk_parameters.glonass_carrier_spacing_hz = GLONASS_L2_CA_DFREQ_HZ;
+                        }
+                    if (d_trk_parameters.glonass_code_rate_cps <= 0.0)
+                        {
+                            d_trk_parameters.glonass_code_rate_cps = GLONASS_L2_CA_CODE_RATE_CPS;
+                        }
+                    if (d_trk_parameters.glonass_code_length_chips <= 0.0)
+                        {
+                            d_trk_parameters.glonass_code_length_chips = GLONASS_L2_CA_CODE_LENGTH_CHIPS;
+                        }
+                    d_signal_carrier_freq = d_trk_parameters.glonass_nominal_carrier_hz;
+                    d_code_chip_rate = d_trk_parameters.glonass_code_rate_cps;
+                    d_code_length_chips = static_cast<int32_t>(std::llround(d_trk_parameters.glonass_code_length_chips));
+                    d_code_period = d_trk_parameters.glonass_code_length_chips / d_trk_parameters.glonass_code_rate_cps;
+                    d_correlation_length_ms = 1;
+                    d_symbols_per_bit = GLONASS_GNAV_TELEMETRY_SYMBOLS_PER_BIT;
+                    d_code_samples_per_chip = 1;
+                    d_secondary = false;
+                    d_trk_parameters.track_pilot = false;
+                    d_secondary_code_length = 0U;
+                    d_data_secondary_code_length = 0U;
+                }
+            else
+                {
+                    LOG(WARNING) << "Invalid Signal argument when instantiating tracking blocks";
+                    std::cout << "Invalid Signal argument when instantiating tracking blocks\n";
+                    d_correlation_length_ms = 1;
+                    d_secondary = false;
+                    d_signal_carrier_freq = 0.0;
+                    d_code_period = 0.0;
+                    d_code_length_chips = 0;
+                    d_code_samples_per_chip = 0U;
+                    d_symbols_per_bit = 0;
+                }
+        }
     else if (d_trk_parameters.system == 'C')
         {
             d_systemName = "Beidou";
@@ -464,7 +544,8 @@ dll_pll_veml_tracking::dll_pll_veml_tracking(const Dll_Pll_Conf &conf_)
         }
 
     // Initial code frequency basis of NCO
-    d_code_freq_chips = d_code_chip_rate;
+    d_initial_code_freq_chips = d_code_chip_rate;
+    d_code_freq_chips = d_initial_code_freq_chips;
 
     // Initialize tracking  ==========================================
     d_code_loop_filter = Tracking_loop_filter(static_cast<float>(d_code_period), d_trk_parameters.dll_bw_hz, d_trk_parameters.dll_filter_order, false);
@@ -763,6 +844,44 @@ void dll_pll_veml_tracking::start_tracking()
                 {
                     galileo_e6_b_code_gen_float_primary(d_tracking_code, d_acquisition_gnss_synchro->PRN);
                 }
+        }
+    else if (d_systemName == "GLONASS")
+        {
+            volk_gnsssdr::vector<gr_complex> aux_code(static_cast<size_t>(d_code_length_chips));
+            if (d_signal_type == "1G")
+                {
+                    glonass_l1_ca_code_gen_complex(own::span<std::complex<float>>(aux_code.data(), d_code_length_chips), 0);
+                }
+            else if (d_signal_type == "2G")
+                {
+                    glonass_l2_ca_code_gen_complex(own::span<std::complex<float>>(aux_code.data(), d_code_length_chips), 0);
+                }
+            else
+                {
+                    std::fill(aux_code.begin(), aux_code.end(), gr_complex(0.0F, 0.0F));
+                }
+
+            for (int32_t i = 0; i < d_code_length_chips; i++)
+                {
+                    d_tracking_code[i] = aux_code[i].real();
+                }
+
+            const auto slot_it = GLONASS_PRN.find(d_acquisition_gnss_synchro->PRN);
+            if (slot_it != GLONASS_PRN.end())
+                {
+                    d_trk_parameters.glonass_frequency_slot = slot_it->second;
+                }
+
+            const double carrier_spacing = (d_trk_parameters.glonass_carrier_spacing_hz != 0.0)
+                                               ? d_trk_parameters.glonass_carrier_spacing_hz
+                                               : ((d_signal_type == "2G") ? GLONASS_L2_CA_DFREQ_HZ : GLONASS_L1_CA_DFREQ_HZ);
+            d_signal_carrier_freq = d_trk_parameters.glonass_nominal_carrier_hz +
+                                    carrier_spacing * static_cast<double>(d_trk_parameters.glonass_frequency_slot);
+
+            const double nominal_code_rate = d_trk_parameters.glonass_code_rate_cps;
+            const double radial_velocity = (d_signal_carrier_freq + d_acq_carrier_doppler_hz) / d_signal_carrier_freq;
+            d_initial_code_freq_chips = radial_velocity * nominal_code_rate;
+            d_code_freq_chips = d_initial_code_freq_chips;
         }
     else if (d_systemName == "Beidou" and d_signal_type == "B1")
         {
@@ -1770,7 +1889,7 @@ int dll_pll_veml_tracking::general_work(int noutput_items __attribute__((unused)
                 const double acq_trk_diff_seconds = static_cast<double>(acq_trk_diff_samples) / d_trk_parameters.fs_in;
                 const double delta_trk_to_acq_prn_start_samples = static_cast<double>(acq_trk_diff_samples) - d_acq_code_phase_samples;
 
-                d_code_freq_chips = d_code_chip_rate;
+                d_code_freq_chips = d_initial_code_freq_chips;
                 d_code_phase_step_chips = d_code_freq_chips / d_trk_parameters.fs_in;
                 d_code_phase_rate_step_chips = 0.0;
                 const double T_chip_mod_seconds = 1.0 / d_code_freq_chips;

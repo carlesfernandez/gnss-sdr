@@ -148,4 +148,10 @@ void Dll_Pll_Conf::SetFromConfiguration(const ConfigurationInterface *configurat
         }
     carrier_lock_test_smoother_samples = configuration->property(role + ".carrier_lock_test_smoother_samples", carrier_lock_test_smoother_samples);
     carrier_lock_test_smoother_alpha = configuration->property(role + ".carrier_lock_test_smoother_alpha", carrier_lock_test_smoother_alpha);
+
+    glonass_frequency_slot = configuration->property(role + ".glonass_frequency_slot", glonass_frequency_slot);
+    glonass_nominal_carrier_hz = configuration->property(role + ".glonass_nominal_carrier_hz", glonass_nominal_carrier_hz);
+    glonass_carrier_spacing_hz = configuration->property(role + ".glonass_carrier_spacing_hz", glonass_carrier_spacing_hz);
+    glonass_code_rate_cps = configuration->property(role + ".glonass_code_rate_cps", glonass_code_rate_cps);
+    glonass_code_length_chips = configuration->property(role + ".glonass_code_length_chips", glonass_code_length_chips);
 }

@@ -21,8 +21,13 @@ BeidouB3iTelemetryDecoder::BeidouB3iTelemetryDecoder(
     const ConfigurationInterface *configuration,
     const std::string &role,
     unsigned int in_streams,
-    unsigned int out_streams) : TelemetryDecoderAdapterBase(configuration, role, in_streams, out_streams,
-                                    [](const Gnss_Satellite &satellite, const Tlm_Conf &tlm_parameters)
-                                    { return beidou_b3i_make_telemetry_decoder_gs(satellite, tlm_parameters); })
+    unsigned int out_streams)
+    : TelemetryDecoderAdapterBase(configuration,
+          role,
+          in_streams,
+          out_streams,
+          [](const Gnss_Satellite &satellite, const Tlm_Conf &tlm_parameters) {
+              return beidou_b3i_make_telemetry_decoder_gs(satellite, tlm_parameters);
+          })
 {
 }

@@ -58,10 +58,10 @@ beidou_b1i_telemetry_decoder_gs_sptr beidou_b1i_make_telemetry_decoder_gs(
 class beidou_b1i_telemetry_decoder_gs : public tracking_impl_adapter
 {
 public:
-    ~beidou_b1i_telemetry_decoder_gs() override;          //!< Class destructor
-    void set_satellite(const Gnss_Satellite &satellite);  //!< Set satellite PRN
-    void set_channel(int channel);                        //!< Set receiver's channel
-    void reset();
+    ~beidou_b1i_telemetry_decoder_gs() override;                   //!< Class destructor
+    void set_satellite(const Gnss_Satellite &satellite) override;  //!< Set satellite PRN
+    void set_channel(int channel) override;                        //!< Set receiver's channel
+    void reset() override;
 
     /*!
      * \brief This is where all signal processing takes place

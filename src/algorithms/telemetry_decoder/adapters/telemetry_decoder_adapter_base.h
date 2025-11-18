@@ -1,13 +1,14 @@
 /*!
  * \file telemetry_decoder_adapter_base.h
  * \brief Common functionality for telemetry decoder adapters
+ * \authors Carles Fernandez, 2025. carles.fernandez(at)cttc.cat
  *
  * -----------------------------------------------------------------------------
  *
  * GNSS-SDR is a Global Navigation Satellite System software-defined receiver.
  * This file is part of GNSS-SDR.
  *
- * Copyright (C) 2010-2024  (see AUTHORS file for a list of contributors)
+ * Copyright (C) 2010-2025  (see AUTHORS file for a list of contributors)
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * -----------------------------------------------------------------------------
@@ -21,12 +22,12 @@
 #include "gnss_synchro.h"
 #include "telemetry_decoder_interface.h"
 #include "tlm_conf.h"
-#include "../gnuradio_blocks/tracking_impl_adapter.h"
+#include "tracking_impl_adapter.h"
 #include <gnuradio/runtime_types.h>
 #include <cstddef>
 #include <string>
-#include <utility>
 #include <type_traits>
+#include <utility>
 
 #if USE_GLOG_AND_GFLAGS
 #include <glog/logging.h>
@@ -58,9 +59,10 @@ public:
         unsigned int in_streams,
         unsigned int out_streams,
         DecoderFactory&& decoder_factory,
-        ParametersCallback&& parameters_callback = ParametersCallback{}) : role_(role),
-                                                                           in_streams_(in_streams),
-                                                                           out_streams_(out_streams)
+        ParametersCallback&& parameters_callback = ParametersCallback{})
+        : role_(role),
+          in_streams_(in_streams),
+          out_streams_(out_streams)
     {
         DLOG(INFO) << "role " << role;
         if (configuration != nullptr)
@@ -69,8 +71,10 @@ public:
                 std::forward<ParametersCallback>(parameters_callback)(tlm_parameters_, configuration, role);
             }
         telemetry_decoder_ = std::forward<DecoderFactory>(decoder_factory)(satellite_, tlm_parameters_);
+
         static_assert(std::is_base_of<tracking_impl_adapter, typename DecoderSptr::element_type>::value,
             "Telemetry decoders must inherit from tracking_impl_adapter");
+
         DLOG(INFO) << "telemetry_decoder(" << telemetry_decoder_->unique_id() << ")";
 
         if (in_streams_ > 1)
@@ -98,6 +102,7 @@ public:
             {
                 /* top_block is not null */
             }
+        DLOG(INFO) << "nothing to connect internally";
     }
 
     gr::basic_block_sptr get_left_block() override
@@ -114,8 +119,7 @@ public:
     {
         satellite_ = Gnss_Satellite(satellite.get_system(), satellite.get_PRN());
         telemetry_decoder_->set_satellite(satellite_);
-        static constexpr const char* kLogPrefix = "TELEMETRY DECODER";
-        DLOG(INFO) << kLogPrefix << ": satellite set to " << satellite_;
+        DLOG(INFO) << satellite.get_system() << " telemetry decoder: satellite set to " << satellite_;
     }
 
     inline std::string role() override

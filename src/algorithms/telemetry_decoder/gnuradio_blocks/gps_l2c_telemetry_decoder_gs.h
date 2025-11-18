@@ -58,9 +58,9 @@ class gps_l2c_telemetry_decoder_gs : public tracking_impl_adapter
 {
 public:
     ~gps_l2c_telemetry_decoder_gs() override;
-    void set_satellite(const Gnss_Satellite &satellite);  //!< Set satellite PRN
-    void set_channel(int32_t channel);                    //!< Set receiver's channel
-    void reset();
+    void set_satellite(const Gnss_Satellite &satellite) override;  //!< Set satellite PRN
+    void set_channel(int32_t channel) override;                    //!< Set receiver's channel
+    void reset() override;
 
     /*!
      * \brief This is where all signal processing takes place

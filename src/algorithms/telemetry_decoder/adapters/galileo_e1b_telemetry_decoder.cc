@@ -22,13 +22,20 @@ GalileoE1BTelemetryDecoder::GalileoE1BTelemetryDecoder(
     const ConfigurationInterface* configuration,
     const std::string& role,
     unsigned int in_streams,
-    unsigned int out_streams) : TelemetryDecoderAdapterBase(configuration, role, in_streams, out_streams,
-                                    [](const Gnss_Satellite& satellite, const Tlm_Conf& tlm_parameters)
-                                    { return galileo_make_telemetry_decoder_gs(satellite, tlm_parameters, 1); },
-                                    [](Tlm_Conf& parameters, const ConfigurationInterface* config, const std::string& role_name)
-                                    {
-                                        parameters.enable_reed_solomon = config->property(role_name + ".enable_reed_solomon", false);
-                                        parameters.use_ced = config->property(role_name + ".use_reduced_ced", false);
-                                    })
+    unsigned int out_streams)
+    : TelemetryDecoderAdapterBase(
+          configuration,
+          role,
+          in_streams,
+          out_streams,
+          [](const Gnss_Satellite& satellite, const Tlm_Conf& tlm_parameters) {
+              return galileo_make_telemetry_decoder_gs(satellite,
+                  tlm_parameters,
+                  1);
+          },
+          [](Tlm_Conf& parameters, const ConfigurationInterface* config, const std::string& role_name) {
+              parameters.enable_reed_solomon = config->property(role_name + ".enable_reed_solomon", false);
+              parameters.use_ced = config->property(role_name + ".use_reduced_ced", false);
+          })
 {
 }

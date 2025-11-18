@@ -60,9 +60,9 @@ class gps_l5_telemetry_decoder_gs : public tracking_impl_adapter
 {
 public:
     ~gps_l5_telemetry_decoder_gs() override;
-    void set_satellite(const Gnss_Satellite &satellite);  //!< Set satellite PRN
-    void set_channel(int32_t channel);                    //!< Set receiver's channel
-    void reset();
+    void set_satellite(const Gnss_Satellite &satellite) override;  //!< Set satellite PRN
+    void set_channel(int32_t channel) override;                    //!< Set receiver's channel
+    void reset() override;
     int general_work(int noutput_items, gr_vector_int &ninput_items,
         gr_vector_const_void_star &input_items, gr_vector_void_star &output_items) override;
 

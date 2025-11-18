@@ -60,10 +60,10 @@ glonass_l1_ca_telemetry_decoder_gs_sptr glonass_l1_ca_make_telemetry_decoder_gs(
 class glonass_l1_ca_telemetry_decoder_gs : public tracking_impl_adapter
 {
 public:
-    ~glonass_l1_ca_telemetry_decoder_gs() override;       //!< Class destructor
-    void set_satellite(const Gnss_Satellite &satellite);  //!< Set satellite PRN
-    void set_channel(int32_t channel);                    //!< Set receiver's channel
-    inline void reset() {};
+    ~glonass_l1_ca_telemetry_decoder_gs() override;                //!< Class destructor
+    void set_satellite(const Gnss_Satellite &satellite) override;  //!< Set satellite PRN
+    void set_channel(int32_t channel) override;                    //!< Set receiver's channel
+    inline void reset() override {};
 
     /*!
      * \brief This is where all signal processing takes place

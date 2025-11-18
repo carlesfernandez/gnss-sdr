@@ -29,6 +29,7 @@
 #include "gnss_time.h"                // for GnssTime
 #include "nav_message_packet.h"       // for Nav_Message_Packet
 #include "tlm_conf.h"                 // for Tlm_Conf
+#include "tracking_impl_adapter.h"
 #include <boost/circular_buffer.hpp>  // for boost::circular_buffer
 #include <gnuradio/block.h>           // for block
 #include <gnuradio/types.h>           // for gr_vector_const_void_star
@@ -58,7 +59,7 @@ galileo_telemetry_decoder_gs_sptr galileo_make_telemetry_decoder_gs(
 /*!
  * \brief This class implements a block that decodes the INAV and FNAV data defined in Galileo ICD
  */
-class galileo_telemetry_decoder_gs : public gr::block
+class galileo_telemetry_decoder_gs : public tracking_impl_adapter
 {
 public:
     ~galileo_telemetry_decoder_gs() override;

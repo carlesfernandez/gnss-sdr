@@ -24,6 +24,7 @@
 #include "nav_message_packet.h"
 #include "tlm_conf.h"
 #include "tlm_crc_stats.h"
+#include "tracking_impl_adapter.h"
 #include <gnuradio/block.h>
 #include <gnuradio/types.h>  // for gr_vector_const_void_star
 #include <cstdint>
@@ -53,7 +54,7 @@ gps_l2c_telemetry_decoder_gs_sptr gps_l2c_make_telemetry_decoder_gs(
 /*!
  * \brief This class implements a block that decodes CNAV data defined in IS-GPS-200M
  */
-class gps_l2c_telemetry_decoder_gs : public gr::block
+class gps_l2c_telemetry_decoder_gs : public tracking_impl_adapter
 {
 public:
     ~gps_l2c_telemetry_decoder_gs() override;

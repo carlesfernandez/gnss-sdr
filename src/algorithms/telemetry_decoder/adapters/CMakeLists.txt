@@ -21,6 +21,7 @@ set(TELEMETRY_DECODER_ADAPTER_SOURCES
 )
 
 set(TELEMETRY_DECODER_ADAPTER_HEADERS
+    telemetry_decoder_adapter_base.h
     gps_l1_ca_telemetry_decoder.h
     gps_l2c_telemetry_decoder.h
     gps_l5_telemetry_decoder.h

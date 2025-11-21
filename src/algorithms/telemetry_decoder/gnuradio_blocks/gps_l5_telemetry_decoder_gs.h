@@ -24,6 +24,7 @@
 #include "nav_message_packet.h"
 #include "tlm_conf.h"
 #include "tlm_crc_stats.h"
+#include "tracking_impl_adapter.h"
 #include <boost/circular_buffer.hpp>
 #include <gnuradio/block.h>
 #include <gnuradio/types.h>  // for gr_vector_const_void_star
@@ -55,7 +56,7 @@ gps_l5_telemetry_decoder_gs_sptr gps_l5_make_telemetry_decoder_gs(
  * \brief This class implements a GPS L5 Telemetry decoder
  *
  */
-class gps_l5_telemetry_decoder_gs : public gr::block
+class gps_l5_telemetry_decoder_gs : public tracking_impl_adapter
 {
 public:
     ~gps_l5_telemetry_decoder_gs() override;

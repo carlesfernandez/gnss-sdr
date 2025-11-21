@@ -19,7 +19,7 @@ void LogRole(const std::string& role)
     DLOG(INFO) << kTelemetryDecoderLogPrefix << ": role " << role;
 }
 
-void LogDecoderInstance(const tracking_impl_adapter_sptr& decoder)
+void LogDecoderInstance(const telemetry_impl_base_sptr& decoder)
 {
     if (decoder)
         {

@@ -1,5 +1,5 @@
 /*!
- * \file tracking_impl_adapter.h
+ * \file telemetry_impl_base.h
  * \brief Base class for telemetry decoder GNU Radio blocks.
  *
  * -----------------------------------------------------------------------------
@@ -13,8 +13,8 @@
  * -----------------------------------------------------------------------------
  */
 
-#ifndef GNSS_SDR_TELEMETRY_DECODER_TRACKING_IMPL_ADAPTER_H
-#define GNSS_SDR_TELEMETRY_DECODER_TRACKING_IMPL_ADAPTER_H
+#ifndef GNSS_SDR_TELEMETRY_DECODER_TELEMETRY_IMPL_BASE_H
+#define GNSS_SDR_TELEMETRY_DECODER_TELEMETRY_IMPL_BASE_H
 
 #include "gnss_block_interface.h"
 #include "gnss_satellite.h"
@@ -30,20 +30,20 @@
  * \{
  */
 
-class tracking_impl_adapter;
-using tracking_impl_adapter_sptr = gnss_shared_ptr<tracking_impl_adapter>;
+class telemetry_impl_base;
+using telemetry_impl_base_sptr = gnss_shared_ptr<telemetry_impl_base>;
 
 /*!
  * \brief Common base class for telemetry decoder GNU Radio implementations.
  */
-class tracking_impl_adapter : public gr::block
+class telemetry_impl_base : public gr::block
 {
 public:
-    tracking_impl_adapter(const std::string& name,
+    telemetry_impl_base(const std::string& name,
         gr::io_signature::sptr input_signature,
         gr::io_signature::sptr output_signature) : gr::block(name, std::move(input_signature), std::move(output_signature)) {}
 
-    ~tracking_impl_adapter() override = default;
+    ~telemetry_impl_base() override = default;
 
     virtual void set_satellite(const Gnss_Satellite& satellite) = 0;
     virtual void set_channel(int channel) = 0;
@@ -53,4 +53,4 @@ public:
 /** \} */
 /** \} */
 
-#endif  // GNSS_SDR_TELEMETRY_DECODER_TRACKING_IMPL_ADAPTER_H
+#endif  // GNSS_SDR_TELEMETRY_DECODER_TELEMETRY_IMPL_BASE_H

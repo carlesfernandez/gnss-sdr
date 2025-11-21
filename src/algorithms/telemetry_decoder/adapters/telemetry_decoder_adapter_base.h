@@ -21,7 +21,7 @@
 #include "gnss_synchro.h"
 #include "telemetry_decoder_interface.h"
 #include "tlm_conf.h"
-#include "../gnuradio_blocks/tracking_impl_adapter.h"
+#include "../gnuradio_blocks/telemetry_impl_base.h"
 #include <gnuradio/runtime_types.h>
 #include <cstddef>
 #include <string>
@@ -32,7 +32,7 @@ class ConfigurationInterface;
 namespace telemetry_decoder_adapter_detail
 {
 void LogRole(const std::string& role);
-void LogDecoderInstance(const tracking_impl_adapter_sptr& decoder);
+void LogDecoderInstance(const telemetry_impl_base_sptr& decoder);
 void LogInputStreamsError(unsigned int in_streams);
 void LogOutputStreamsError(unsigned int out_streams);
 void LogConnect();
@@ -75,13 +75,13 @@ public:
     size_t item_size() override;
 
 protected:
-    void InitializeDecoder(tracking_impl_adapter_sptr decoder);
+    void InitializeDecoder(telemetry_impl_base_sptr decoder);
     // Adapters can tweak telemetry parameters directly before calling
     // InitializeDecoder(); no separate callback mechanism is required.
     Tlm_Conf& tlm_parameters();
     const Gnss_Satellite& satellite() const;
 
-    tracking_impl_adapter_sptr telemetry_decoder_;
+    telemetry_impl_base_sptr telemetry_decoder_;
     Gnss_Satellite satellite_;
     Tlm_Conf tlm_parameters_;
     const ConfigurationInterface* configuration_ = nullptr;
@@ -90,7 +90,7 @@ protected:
     unsigned int out_streams_ = 0;
 };
 
-inline void TelemetryDecoderAdapterBase::InitializeDecoder(tracking_impl_adapter_sptr decoder)
+inline void TelemetryDecoderAdapterBase::InitializeDecoder(telemetry_impl_base_sptr decoder)
 {
     telemetry_decoder_ = std::move(decoder);
     telemetry_decoder_adapter_detail::LogDecoderInstance(telemetry_decoder_);

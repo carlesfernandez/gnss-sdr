@@ -19,7 +19,7 @@
 
 #include "gnss_block_interface.h"
 #include "gnss_satellite.h"
-#include "tracking_impl_adapter.h"
+#include "telemetry_impl_base.h"
 #include <boost/crc.hpp>  // for crc_optimal
 #include <gnuradio/block.h>
 #include <gnuradio/types.h>  // for gr_vector_const_void_star
@@ -52,7 +52,7 @@ sbas_l1_telemetry_decoder_gs_sptr sbas_l1_make_telemetry_decoder_gs(
  * \brief This class implements a block that decodes the SBAS integrity and
  * corrections data defined in RTCA MOPS DO-229
  */
-class sbas_l1_telemetry_decoder_gs : public tracking_impl_adapter
+class sbas_l1_telemetry_decoder_gs : public telemetry_impl_base
 {
 public:
     ~sbas_l1_telemetry_decoder_gs() override;

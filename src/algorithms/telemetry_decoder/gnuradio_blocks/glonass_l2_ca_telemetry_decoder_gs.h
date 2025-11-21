@@ -26,7 +26,7 @@
 #include "nav_message_packet.h"
 #include "tlm_conf.h"
 #include "tlm_crc_stats.h"
-#include "tracking_impl_adapter.h"
+#include "telemetry_impl_base.h"
 #include <boost/circular_buffer.hpp>
 #include <gnuradio/block.h>
 #include <gnuradio/types.h>  // for gr_vector_const_void_star
@@ -55,7 +55,7 @@ glonass_l2_ca_telemetry_decoder_gs_sptr glonass_l2_ca_make_telemetry_decoder_gs(
  * \see <a href="http://russianspacesystems.ru/wp-content/uploads/2016/08/ICD_GLONASS_eng_v5.1.pdf">GLONASS ICD</a>
  *
  */
-class glonass_l2_ca_telemetry_decoder_gs : public tracking_impl_adapter
+class glonass_l2_ca_telemetry_decoder_gs : public telemetry_impl_base
 {
 public:
     ~glonass_l2_ca_telemetry_decoder_gs() override;       //!< Class destructor

@@ -20,7 +20,7 @@
 #include "gnss_block_interface.h"
 #include "gnss_satellite.h"
 #include "gnss_synchro.h"
-#include "tracking_impl_adapter.h"
+#include "telemetry_impl_base.h"
 #include "gnss_time.h"  // for timetags produced by Tracking
 #include "gps_navigation_message.h"
 #include "nav_message_packet.h"
@@ -53,7 +53,7 @@ gps_l1_ca_telemetry_decoder_gs_sptr gps_l1_ca_make_telemetry_decoder_gs(
 /*!
  * \brief This class implements a block that decodes the NAV data defined in IS-GPS-200M
  */
-class gps_l1_ca_telemetry_decoder_gs : public tracking_impl_adapter
+class gps_l1_ca_telemetry_decoder_gs : public telemetry_impl_base
 {
 public:
     ~gps_l1_ca_telemetry_decoder_gs() override;

@@ -26,7 +26,7 @@ GalileoE1BTelemetryDecoder::GalileoE1BTelemetryDecoder(
 {
     if (configuration != nullptr)
         {
-            auto& parameters = mutable_tlm_parameters();
+            auto& parameters = tlm_parameters();
             parameters.enable_reed_solomon = configuration->property(role + ".enable_reed_solomon", false);
             parameters.use_ced = configuration->property(role + ".use_reduced_ced", false);
         }

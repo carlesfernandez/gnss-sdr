@@ -75,12 +75,10 @@ public:
     size_t item_size() override;
 
 protected:
-    // Adapters that need to tweak telemetry parameters can mutate the
-    // configuration directly via these accessors before calling
-    // InitializeDecoder(); no separate callback mechanism is required.
     void InitializeDecoder(tracking_impl_adapter_sptr decoder);
-    Tlm_Conf& mutable_tlm_parameters();
-    const Tlm_Conf& tlm_parameters() const;
+    // Adapters can tweak telemetry parameters directly before calling
+    // InitializeDecoder(); no separate callback mechanism is required.
+    Tlm_Conf& tlm_parameters();
     const Gnss_Satellite& satellite() const;
 
     tracking_impl_adapter_sptr telemetry_decoder_;
@@ -169,12 +167,7 @@ inline size_t TelemetryDecoderAdapterBase::item_size()
     return sizeof(Gnss_Synchro);
 }
 
-inline Tlm_Conf& TelemetryDecoderAdapterBase::mutable_tlm_parameters()
-{
-    return tlm_parameters_;
-}
-
-inline const Tlm_Conf& TelemetryDecoderAdapterBase::tlm_parameters() const
+inline Tlm_Conf& TelemetryDecoderAdapterBase::tlm_parameters()
 {
     return tlm_parameters_;
 }

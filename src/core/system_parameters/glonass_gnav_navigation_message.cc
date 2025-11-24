@@ -110,18 +110,22 @@ bool Glonass_Gnav_Navigation_Message::CRC_test(std::bitset<GLONASS_GNAV_STRING_B
     const int32_t C_Sigma = (sum_hamming % 2) ^ (sum_bits % 2);
 
     // Verification of the data
+    const int32_t parity_sum = C1 + C2 + C3 + C4 + C5 + C6 + C7;
+
     // (a-i) All checksums (C1,...,C7 and C_Sigma) are equal to zero
-    if ((C1 + C2 + C3 + C4 + C5 + C6 + C7 + C_Sigma) == 0)
-        {
-            return true;
-        }
-    // (a-ii) Only one of the checksums (C1,...,C7) is equal to 1 and C_Sigma = 1
-    if (C_Sigma == 1 && C1 + C2 + C3 + C4 + C5 + C6 + C7 == 1)
+    if ((parity_sum + C_Sigma) == 0)
         {
             return true;
         }
 
-    if (C_Sigma && (sum_bits & 1))
+    // (a-ii) Only one of the checksums (C1,...,C7) is equal to 1 and C_Sigma = 1
+    if (C_Sigma == 1 && parity_sum == 1)
+        {
+            return true;
+        }
+
+    // (a-iii) C_Sigma = 1 and C1...C7 indicate a single bit error in the data field
+    if (C_Sigma == 1 && parity_sum > 0)
         {
             int32_t syndrome = C1;
             syndrome |= (C2 ? 2 : 0);
@@ -130,16 +134,15 @@ bool Glonass_Gnav_Navigation_Message::CRC_test(std::bitset<GLONASS_GNAV_STRING_B
             syndrome |= (C5 ? 16 : 0);
             syndrome |= (C6 ? 32 : 0);
             syndrome |= (C7 ? 64 : 0);
-            if (syndrome < 85)
+
+            if (syndrome < static_cast<int32_t>(GLONASS_GNAV_ECC_LOCATOR.size()))
                 {
                     const int32_t locator = GLONASS_GNAV_ECC_LOCATOR[syndrome];
                     bits[locator] = !bits[locator];
                     return true;
                 }
-            else
-                {
-                    return false;
-                }
+
+            return false;
         }
 
     // All other conditions are assumed errors.

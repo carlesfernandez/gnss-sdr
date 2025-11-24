@@ -170,30 +170,17 @@ uint64_t Glonass_Gnav_Navigation_Message::read_navigation_unsigned(const std::bi
 
 int64_t Glonass_Gnav_Navigation_Message::read_navigation_signed(const std::bitset<GLONASS_GNAV_STRING_BITS>& bits, const std::vector<std::pair<int32_t, int32_t>>& parameter) const
 {
-    uint64_t value = 0ULL;
-    int32_t total_bits = 0;
+    int64_t value = 0LL;
+    int64_t sign = (bits[GLONASS_GNAV_STRING_BITS - parameter[0].first] == 1) ? -1LL : 1LL;
 
     for (const auto& p : parameter)
         {
-            for (int32_t j = 0; j < p.second; j++)
+            for (int32_t j = 1; j < p.second; j++)
                 {
-                    value = (value << 1U) | static_cast<uint64_t>(bits[GLONASS_GNAV_STRING_BITS - p.first - j]);
+                    value = (value << 1) + bits[GLONASS_GNAV_STRING_BITS - p.first - j];
                 }
-            total_bits += p.second;
         }
-
-    if (total_bits == 0)
-        {
-            return 0;
-        }
-
-    const uint64_t sign_mask = 1ULL << (total_bits - 1);
-    if ((value & sign_mask) != 0U)
-        {
-            value = value - (sign_mask << 1U);
-        }
-
-    return static_cast<int64_t>(value);
+    return (sign * value);
 }
 
 

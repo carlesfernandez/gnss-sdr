@@ -78,9 +78,9 @@ TEST(GlonassGnavNavigationMessageTest, String1Decoder)
     // Fill out ephemeris values for truth
     gnav_ephemeris.d_P_1 = 0.;
     gnav_ephemeris.d_t_k = 7560.;
-    gnav_ephemeris.d_VXn = -0.490900039672852;
+    gnav_ephemeris.d_VXn = -7.509099960327148;
     gnav_ephemeris.d_AXn = 0.;
-    gnav_ephemeris.d_Xn = -11025.6669921875;
+    gnav_ephemeris.d_Xn = -21742.3330078125;
 
     // Call target test method
     gnav_nav_message.string_decoder(str1);
@@ -112,9 +112,9 @@ TEST(GlonassGnavNavigationMessageTest, String2Decoder)
     gnav_ephemeris.d_B_n = 0;
     gnav_ephemeris.d_P_2 = true;
     gnav_ephemeris.d_t_b = 8100;
-    gnav_ephemeris.d_VYn = -2.69022750854492;
+    gnav_ephemeris.d_VYn = -5.309772491455078;
     gnav_ephemeris.d_AYn = 0;
-    gnav_ephemeris.d_Yn = -11456.7348632812;
+    gnav_ephemeris.d_Yn = -21311.2651367188;
 
     // Call target test method
     gnav_nav_message.set_flag_ephemeris_str_1(true);
@@ -149,8 +149,8 @@ TEST(GlonassGnavNavigationMessageTest, String3Decoder)
     gnav_ephemeris.d_gamma_n = 1.81898940354586e-12;
     gnav_ephemeris.d_P = 3;
     gnav_ephemeris.d_l3rd_n = false;
-    gnav_ephemeris.d_VZn = -1.82016849517822;
-    gnav_ephemeris.d_AZn = -2.79396772384644e-09;
+    gnav_ephemeris.d_VZn = -6.179831504821777;
+    gnav_ephemeris.d_AZn = -1.21071934700012e-08;
     gnav_ephemeris.d_Zn = 19929.2377929688;
 
     // Call target test method
@@ -183,7 +183,7 @@ TEST(GlonassGnavNavigationMessageTest, String4Decoder)
     Glonass_Gnav_Ephemeris gnav_ephemeris;
 
     // Fill out ephemeris values for truth
-    gnav_ephemeris.d_tau_n = -8.30907374620438e-05;
+    gnav_ephemeris.d_tau_n = -0.00187003426253796;
     gnav_ephemeris.d_Delta_tau_n = 9.31322574615479e-10;
     gnav_ephemeris.d_E_n = 0;
     gnav_ephemeris.d_P_4 = false;

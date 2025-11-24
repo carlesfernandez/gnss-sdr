@@ -170,18 +170,30 @@ uint64_t Glonass_Gnav_Navigation_Message::read_navigation_unsigned(const std::bi
 
 int64_t Glonass_Gnav_Navigation_Message::read_navigation_signed(const std::bitset<GLONASS_GNAV_STRING_BITS>& bits, const std::vector<std::pair<int32_t, int32_t>>& parameter) const
 {
-    int64_t value = 0LL;
-    int64_t sign = (bits[GLONASS_GNAV_STRING_BITS - parameter[0].first] == 1) ? -1LL : 1LL;
+    uint64_t value = 0ULL;
+    int32_t total_bits = 0;
 
-    // const int32_t num_of_slices = parameter.size();
     for (const auto& p : parameter)
         {
-            for (int32_t j = 1; j < p.second; j++)
+            for (int32_t j = 0; j < p.second; j++)
                 {
-                    value = (value << 1) + bits[GLONASS_GNAV_STRING_BITS - p.first - j];
+                    value = (value << 1U) | static_cast<uint64_t>(bits[GLONASS_GNAV_STRING_BITS - p.first - j]);
                 }
+            total_bits += p.second;
         }
-    return (sign * value);
+
+    if (total_bits == 0)
+        {
+            return 0;
+        }
+
+    const uint64_t sign_mask = 1ULL << (total_bits - 1);
+    if ((value & sign_mask) != 0U)
+        {
+            value = value - (sign_mask << 1U);
+        }
+
+    return static_cast<int64_t>(value);
 }
 
 
@@ -372,7 +384,7 @@ int32_t Glonass_Gnav_Navigation_Message::string_decoder(const std::string& frame
             gnav_almanac[i_alm_satellite_slot_number - 1].d_C_n = read_navigation_bool(string_bits, C_N);
             gnav_almanac[i_alm_satellite_slot_number - 1].d_M_n_A = static_cast<double>(read_navigation_unsigned(string_bits, M_N_A));
             gnav_almanac[i_alm_satellite_slot_number - 1].d_n_A = static_cast<double>(read_navigation_unsigned(string_bits, N_A));
-            gnav_almanac[i_alm_satellite_slot_number - 1].d_tau_n_A = static_cast<double>(read_navigation_unsigned(string_bits, TAU_N_A)) * TWO_N18;
+            gnav_almanac[i_alm_satellite_slot_number - 1].d_tau_n_A = static_cast<double>(read_navigation_signed(string_bits, TAU_N_A)) * TWO_N18;
             gnav_almanac[i_alm_satellite_slot_number - 1].d_lambda_n_A = static_cast<double>(read_navigation_signed(string_bits, LAMBDA_N_A)) * TWO_N20 * GNSS_PI;
             gnav_almanac[i_alm_satellite_slot_number - 1].d_Delta_i_n_A = static_cast<double>(read_navigation_signed(string_bits, DELTA_I_N_A)) * TWO_N20 * GNSS_PI;
             gnav_almanac[i_alm_satellite_slot_number - 1].d_epsilon_n_A = static_cast<double>(read_navigation_unsigned(string_bits, EPSILON_N_A)) * TWO_N20;
@@ -422,7 +434,7 @@ int32_t Glonass_Gnav_Navigation_Message::string_decoder(const std::string& frame
             gnav_almanac[i_alm_satellite_slot_number - 1].d_C_n = read_navigation_bool(string_bits, C_N);
             gnav_almanac[i_alm_satellite_slot_number - 1].d_M_n_A = static_cast<double>(read_navigation_unsigned(string_bits, M_N_A));
             gnav_almanac[i_alm_satellite_slot_number - 1].d_n_A = static_cast<double>(read_navigation_unsigned(string_bits, N_A));
-            gnav_almanac[i_alm_satellite_slot_number - 1].d_tau_n_A = static_cast<double>(read_navigation_unsigned(string_bits, TAU_N_A)) * TWO_N18;
+            gnav_almanac[i_alm_satellite_slot_number - 1].d_tau_n_A = static_cast<double>(read_navigation_signed(string_bits, TAU_N_A)) * TWO_N18;
             gnav_almanac[i_alm_satellite_slot_number - 1].d_lambda_n_A = static_cast<double>(read_navigation_signed(string_bits, LAMBDA_N_A)) * TWO_N20 * GNSS_PI;
             gnav_almanac[i_alm_satellite_slot_number - 1].d_Delta_i_n_A = static_cast<double>(read_navigation_signed(string_bits, DELTA_I_N_A)) * TWO_N20 * GNSS_PI;
             gnav_almanac[i_alm_satellite_slot_number - 1].d_epsilon_n_A = static_cast<double>(read_navigation_unsigned(string_bits, EPSILON_N_A)) * TWO_N20;
@@ -467,7 +479,7 @@ int32_t Glonass_Gnav_Navigation_Message::string_decoder(const std::string& frame
             gnav_almanac[i_alm_satellite_slot_number - 1].d_C_n = read_navigation_bool(string_bits, C_N);
             gnav_almanac[i_alm_satellite_slot_number - 1].d_M_n_A = static_cast<double>(read_navigation_unsigned(string_bits, M_N_A));
             gnav_almanac[i_alm_satellite_slot_number - 1].d_n_A = static_cast<double>(read_navigation_unsigned(string_bits, N_A));
-            gnav_almanac[i_alm_satellite_slot_number - 1].d_tau_n_A = static_cast<double>(read_navigation_unsigned(string_bits, TAU_N_A)) * TWO_N18;
+            gnav_almanac[i_alm_satellite_slot_number - 1].d_tau_n_A = static_cast<double>(read_navigation_signed(string_bits, TAU_N_A)) * TWO_N18;
             gnav_almanac[i_alm_satellite_slot_number - 1].d_lambda_n_A = static_cast<double>(read_navigation_signed(string_bits, LAMBDA_N_A)) * TWO_N20 * GNSS_PI;
             gnav_almanac[i_alm_satellite_slot_number - 1].d_Delta_i_n_A = static_cast<double>(read_navigation_signed(string_bits, DELTA_I_N_A)) * TWO_N20 * GNSS_PI;
             gnav_almanac[i_alm_satellite_slot_number - 1].d_epsilon_n_A = static_cast<double>(read_navigation_unsigned(string_bits, EPSILON_N_A)) * TWO_N20;
@@ -511,7 +523,7 @@ int32_t Glonass_Gnav_Navigation_Message::string_decoder(const std::string& frame
             gnav_almanac[i_alm_satellite_slot_number - 1].d_C_n = read_navigation_bool(string_bits, C_N);
             gnav_almanac[i_alm_satellite_slot_number - 1].d_M_n_A = static_cast<double>(read_navigation_unsigned(string_bits, M_N_A));
             gnav_almanac[i_alm_satellite_slot_number - 1].d_n_A = static_cast<double>(read_navigation_unsigned(string_bits, N_A));
-            gnav_almanac[i_alm_satellite_slot_number - 1].d_tau_n_A = static_cast<double>(read_navigation_unsigned(string_bits, TAU_N_A)) * TWO_N18;
+            gnav_almanac[i_alm_satellite_slot_number - 1].d_tau_n_A = static_cast<double>(read_navigation_signed(string_bits, TAU_N_A)) * TWO_N18;
             gnav_almanac[i_alm_satellite_slot_number - 1].d_lambda_n_A = static_cast<double>(read_navigation_signed(string_bits, LAMBDA_N_A)) * TWO_N20 * GNSS_PI;
             gnav_almanac[i_alm_satellite_slot_number - 1].d_Delta_i_n_A = static_cast<double>(read_navigation_signed(string_bits, DELTA_I_N_A)) * TWO_N20 * GNSS_PI;
             gnav_almanac[i_alm_satellite_slot_number - 1].d_epsilon_n_A = static_cast<double>(read_navigation_unsigned(string_bits, EPSILON_N_A)) * TWO_N20;
@@ -562,7 +574,7 @@ int32_t Glonass_Gnav_Navigation_Message::string_decoder(const std::string& frame
                     gnav_almanac[i_alm_satellite_slot_number - 1].d_C_n = read_navigation_bool(string_bits, C_N);
                     gnav_almanac[i_alm_satellite_slot_number - 1].d_M_n_A = static_cast<double>(read_navigation_unsigned(string_bits, M_N_A));
                     gnav_almanac[i_alm_satellite_slot_number - 1].d_n_A = static_cast<double>(read_navigation_unsigned(string_bits, N_A));
-                    gnav_almanac[i_alm_satellite_slot_number - 1].d_tau_n_A = static_cast<double>(read_navigation_unsigned(string_bits, TAU_N_A)) * TWO_N18;
+                    gnav_almanac[i_alm_satellite_slot_number - 1].d_tau_n_A = static_cast<double>(read_navigation_signed(string_bits, TAU_N_A)) * TWO_N18;
                     gnav_almanac[i_alm_satellite_slot_number - 1].d_lambda_n_A = static_cast<double>(read_navigation_signed(string_bits, LAMBDA_N_A)) * TWO_N20 * GNSS_PI;
                     gnav_almanac[i_alm_satellite_slot_number - 1].d_Delta_i_n_A = static_cast<double>(read_navigation_signed(string_bits, DELTA_I_N_A)) * TWO_N20 * GNSS_PI;
                     gnav_almanac[i_alm_satellite_slot_number - 1].d_epsilon_n_A = static_cast<double>(read_navigation_unsigned(string_bits, EPSILON_N_A)) * TWO_N20;
@@ -651,9 +663,15 @@ bool Glonass_Gnav_Navigation_Message::have_new_utc_model()  // Check if we have 
 bool Glonass_Gnav_Navigation_Message::have_new_almanac()  // Check if we have a new almanac data set stored in the galileo navigation class
 {
     bool new_alm = false;
+    if (i_alm_satellite_slot_number == 0 || i_alm_satellite_slot_number > GLONASS_CA_NBR_SATS)
+        {
+            return false;
+        }
+
+    const size_t idx = i_alm_satellite_slot_number - 1U;
     if ((flag_almanac_str_6 == true) and (flag_almanac_str_7 == true))
         {
-            if (d_previous_Na[i_alm_satellite_slot_number] != gnav_utc_model.d_N_A)
+            if (d_previous_Na[idx] != gnav_utc_model.d_N_A)
                 {
                     // All Almanac data have been received for this satellite
                     flag_almanac_str_6 = false;
@@ -663,7 +681,7 @@ bool Glonass_Gnav_Navigation_Message::have_new_almanac()  // Check if we have a 
         }
     if ((flag_almanac_str_8 == true) and (flag_almanac_str_9 == true))
         {
-            if (d_previous_Na[i_alm_satellite_slot_number] != gnav_utc_model.d_N_A)
+            if (d_previous_Na[idx] != gnav_utc_model.d_N_A)
                 {
                     flag_almanac_str_8 = false;
                     flag_almanac_str_9 = false;
@@ -672,7 +690,7 @@ bool Glonass_Gnav_Navigation_Message::have_new_almanac()  // Check if we have a 
         }
     if ((flag_almanac_str_10 == true) and (flag_almanac_str_11 == true))
         {
-            if (d_previous_Na[i_alm_satellite_slot_number] != gnav_utc_model.d_N_A)
+            if (d_previous_Na[idx] != gnav_utc_model.d_N_A)
                 {
                     flag_almanac_str_10 = false;
                     flag_almanac_str_11 = false;
@@ -681,7 +699,7 @@ bool Glonass_Gnav_Navigation_Message::have_new_almanac()  // Check if we have a 
         }
     if ((flag_almanac_str_12 == true) and (flag_almanac_str_13 == true))
         {
-            if (d_previous_Na[i_alm_satellite_slot_number] != gnav_utc_model.d_N_A)
+            if (d_previous_Na[idx] != gnav_utc_model.d_N_A)
                 {
                     flag_almanac_str_12 = false;
                     flag_almanac_str_13 = false;
@@ -690,12 +708,17 @@ bool Glonass_Gnav_Navigation_Message::have_new_almanac()  // Check if we have a 
         }
     if ((flag_almanac_str_14 == true) and (flag_almanac_str_15 == true))
         {
-            if (d_previous_Na[i_alm_satellite_slot_number] != gnav_utc_model.d_N_A)
+            if (d_previous_Na[idx] != gnav_utc_model.d_N_A)
                 {
                     flag_almanac_str_14 = false;
                     flag_almanac_str_15 = false;
                     new_alm = true;
                 }
+        }
+
+    if (new_alm)
+        {
+            d_previous_Na[idx] = gnav_utc_model.d_N_A;
         }
 
     return new_alm;

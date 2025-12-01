@@ -15,6 +15,7 @@
  */
 
 #include "ion_gsms_chunk_data.h"
+#include <algorithm>
 #include <cstring>
 #if USE_GLOG_AND_GFLAGS
 #include <glog/logging.h>
@@ -42,15 +43,9 @@ IONGSMSChunkData::IONGSMSChunkData(const GnssMetadata::Chunk& chunk, const std::
                 {
                     used_bitsize += stream.Packedbits();
 
-                    bool found = false;
-                    for (const auto& stream_id : stream_ids)
-                        {
-                            if (stream_id == stream.Id())
-                                {
-                                    found = true;
-                                    break;
-                                }
-                        }
+                    const bool found = stream_ids.empty() ||
+                        std::any_of(stream_ids.begin(), stream_ids.end(), [&stream](const auto& id) { return id == stream.Id(); });
+
                     if (found)
                         {
                             streams_.emplace_back(lump, stream, GnssMetadata::encoding_from_string(stream.Encoding()), output_streams + output_stream_offset);

@@ -117,7 +117,7 @@ gr::io_signature::sptr IONGSMSFileSource::make_output_signature(const GnssMetada
                 {
                     for (const auto& stream : lump.Streams())
                         {
-                            bool found = false;
+                            bool found = stream_ids.empty();
                             for (const auto& stream_id : stream_ids)
                                 {
                                     if (stream_id == stream.Id())

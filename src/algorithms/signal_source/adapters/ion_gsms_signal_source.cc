@@ -19,6 +19,7 @@
 #include "gnss_sdr_string_literals.h"
 #include "gnss_sdr_valve.h"
 #include <gnuradio/blocks/copy.h>
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <unordered_set>
@@ -45,11 +46,49 @@ std::vector<std::string> parse_comma_list(const std::string& str)
                 {
                     comma_at = str.size();
                 }
-            list.emplace_back(str.substr(prev_comma_at, (comma_at - prev_comma_at)));
+            auto element = str.substr(prev_comma_at, (comma_at - prev_comma_at));
+            if (!element.empty())
+                {
+                    list.emplace_back(std::move(element));
+                }
             prev_comma_at = comma_at + 1;
         }
 
     return list;
+}
+
+bool should_use_stream(const std::string& stream_id, const std::vector<std::string>& stream_ids)
+{
+    return stream_ids.empty() ||
+           std::any_of(stream_ids.begin(), stream_ids.end(), [&stream_id](const auto& id) { return id == stream_id; });
+}
+
+std::vector<std::string> collect_all_stream_ids(const GnssMetadata::Metadata& metadata)
+{
+    std::vector<std::string> stream_ids{};
+    std::unordered_set<std::string> seen{};
+
+    for (const auto& lane : metadata.Lanes())
+        {
+            for (const auto& block : lane.Blocks())
+                {
+                    for (const auto& chunk : block.Chunks())
+                        {
+                            for (const auto& lump : chunk.Lumps())
+                                {
+                                    for (const auto& stream : lump.Streams())
+                                        {
+                                            if (seen.emplace(stream.Id()).second)
+                                                {
+                                                    stream_ids.push_back(stream.Id());
+                                                }
+                                        }
+                                }
+                        }
+                }
+        }
+
+    return stream_ids;
 }
 }  // anonymous namespace
 
@@ -76,6 +115,11 @@ IONGSMSSignalSource::IONGSMSSignalSource(const ConfigurationInterface* configura
 
     // Parse XML metadata file
     load_metadata();
+
+    if (stream_ids_.empty())
+        {
+            stream_ids_ = collect_all_stream_ids(*metadata_);
+        }
 
     // Make source vector
     sources_ = make_stream_sources(stream_ids_);
@@ -140,16 +184,7 @@ std::vector<IONGSMSFileSource::sptr> IONGSMSSignalSource::make_stream_sources(co
                                                 {
                                                     for (const auto& stream : lump.Streams())
                                                         {
-                                                            bool found = false;
-                                                            for (const auto& stream_id : stream_ids)
-                                                                {
-                                                                    if (stream_id == stream.Id())
-                                                                        {
-                                                                            found = true;
-                                                                            break;
-                                                                        }
-                                                                }
-                                                            if (found)
+                                                            if (should_use_stream(stream.Id(), stream_ids))
                                                                 {
                                                                     auto source = gnss_make_shared<IONGSMSFileSource>(
                                                                         metadata_filepath_,

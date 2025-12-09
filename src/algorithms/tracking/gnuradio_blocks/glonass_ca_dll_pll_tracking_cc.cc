@@ -59,14 +59,14 @@ Glonass_Ca_Dll_Pll_Tracking_cc::GlonassSignalParams params_for_band(GlonassBand 
     switch (band)
         {
         case GlonassBand::L1:
-            return {GLONASS_L1_CA_FREQ_HZ, GLONASS_L1_CA_CODE_RATE_CPS, GLONASS_L1_CA_CODE_LENGTH_CHIPS,
-                GLONASS_L1_CA_CODE_PERIOD_S, DFRQ1_GLO};
+            return {GLONASS_L1_CA_FREQ_HZ, GLONASS_L1_CA_CODE_RATE_CPS,
+                static_cast<int32_t>(GLONASS_L1_CA_CODE_LENGTH_CHIPS), GLONASS_L1_CA_CODE_PERIOD_S, DFRQ1_GLO};
         case GlonassBand::L2:
-            return {GLONASS_L2_CA_FREQ_HZ, GLONASS_L2_CA_CODE_RATE_CPS, GLONASS_L2_CA_CODE_LENGTH_CHIPS,
-                GLONASS_L2_CA_CODE_PERIOD_S, DFRQ2_GLO};
+            return {GLONASS_L2_CA_FREQ_HZ, GLONASS_L2_CA_CODE_RATE_CPS,
+                static_cast<int32_t>(GLONASS_L2_CA_CODE_LENGTH_CHIPS), GLONASS_L2_CA_CODE_PERIOD_S, DFRQ2_GLO};
         default:
-            return {GLONASS_L1_CA_FREQ_HZ, GLONASS_L1_CA_CODE_RATE_CPS, GLONASS_L1_CA_CODE_LENGTH_CHIPS,
-                GLONASS_L1_CA_CODE_PERIOD_S, DFRQ1_GLO};
+            return {GLONASS_L1_CA_FREQ_HZ, GLONASS_L1_CA_CODE_RATE_CPS,
+                static_cast<int32_t>(GLONASS_L1_CA_CODE_LENGTH_CHIPS), GLONASS_L1_CA_CODE_PERIOD_S, DFRQ1_GLO};
         }
 }
 }  // namespace

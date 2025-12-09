@@ -30,6 +30,7 @@
 #include "Galileo_E5a.h"
 #include "Galileo_E5b.h"
 #include "Galileo_E6.h"
+#include "GLONASS_L1_L2_CA.h"
 #include "MATH_CONSTANTS.h"
 #include "beidou_b1i_signal_replica.h"
 #include "beidou_b3i_signal_replica.h"
@@ -43,6 +44,7 @@
 #include "gps_l2c_signal_replica.h"
 #include "gps_l5_signal_replica.h"
 #include "gps_sdr_signal_replica.h"
+#include "glonass_l2_signal_replica.h"
 #include "lock_detectors.h"
 #include "matlab_writter_helper.h"
 #include "tracking_discriminators.h"
@@ -436,6 +438,37 @@ dll_pll_veml_tracking::dll_pll_veml_tracking(const Dll_Pll_Conf &conf_)
                     d_secondary_code_string = BEIDOU_B3I_SECONDARY_CODE_STR;
                     d_data_secondary_code_length = static_cast<uint32_t>(BEIDOU_B3I_SECONDARY_CODE_LENGTH);
                     d_data_secondary_code_string = BEIDOU_B3I_SECONDARY_CODE_STR;
+                }
+            else
+                {
+                    LOG(WARNING) << "Invalid Signal argument when instantiating tracking blocks";
+                    std::cout << "Invalid Signal argument when instantiating tracking blocks\n";
+                    d_correlation_length_ms = 1;
+                    d_secondary = false;
+                    d_signal_carrier_freq = 0.0;
+                    d_code_period = 0.0;
+                    d_code_length_chips = 0;
+                    d_code_samples_per_chip = 0;
+                    d_symbols_per_bit = 0;
+                }
+        }
+    else if (d_trk_parameters.system == 'R')
+        {
+            d_systemName = "Glonass";
+            if (d_signal_type == "2G")
+                {
+                    d_signal_carrier_freq = GLONASS_L2_CA_FREQ_HZ;
+                    d_code_period = GLONASS_L2_CA_CODE_PERIOD_S;
+                    d_code_chip_rate = GLONASS_L2_CA_CODE_RATE_CPS;
+                    d_correlation_length_ms = 1;
+                    d_code_samples_per_chip = 1;
+                    d_code_length_chips = static_cast<int32_t>(GLONASS_L2_CA_CODE_LENGTH_CHIPS);
+                    d_secondary = false;
+                    d_trk_parameters.track_pilot = false;
+                    d_trk_parameters.slope = 1.0F;
+                    d_trk_parameters.spc = d_trk_parameters.early_late_space_chips;
+                    d_trk_parameters.y_intercept = 1.0F;
+                    d_symbols_per_bit = GLONASS_GNAV_TELEMETRY_SYMBOLS_PER_BIT;
                 }
             else
                 {
@@ -844,6 +877,20 @@ void dll_pll_veml_tracking::start_tracking()
                     d_data_secondary_code_length = static_cast<uint32_t>(BEIDOU_B3I_SECONDARY_CODE_LENGTH);
                     d_data_secondary_code_string = BEIDOU_B3I_SECONDARY_CODE_STR;
                     d_Prompt_circular_buffer.set_capacity(d_secondary_code_length);
+                }
+        }
+    else if (d_systemName == "Glonass" and d_signal_type == "2G")
+        {
+            const double glonass_channel_frequency = GLONASS_L2_CA_FREQ_HZ + (DFRQ2_GLO * GLONASS_PRN.at(d_acquisition_gnss_synchro->PRN));
+            d_signal_carrier_freq = glonass_channel_frequency;
+            // initial code frequency including Doppler effect on chip rate
+            d_code_freq_chips = d_code_chip_rate + ((d_carrier_doppler_hz * d_code_chip_rate) / d_signal_carrier_freq);
+
+            volk_gnsssdr::vector<gr_complex> aux_code(static_cast<size_t>(d_code_length_chips));
+            glonass_l2_ca_code_gen_complex(own::span<gr_complex>(aux_code.data(), static_cast<size_t>(d_code_length_chips)), 0);
+            for (int32_t i = 0; i < d_code_length_chips; i++)
+                {
+                    d_tracking_code[i] = aux_code[static_cast<size_t>(i)].real();
                 }
         }
 

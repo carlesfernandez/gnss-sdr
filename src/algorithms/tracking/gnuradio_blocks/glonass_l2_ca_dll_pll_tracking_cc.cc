@@ -84,7 +84,7 @@ Glonass_L2_Ca_Dll_Pll_Tracking_cc::Glonass_L2_Ca_Dll_Pll_Tracking_cc(
     float pll_bw_hz,
     float dll_bw_hz,
     float early_late_space_chips)
-    : gr::block("Glonass_L1_Ca_Dll_Pll_Tracking_cc", gr::io_signature::make(1, 1, sizeof(gr_complex)),
+    : gr::block("Glonass_L2_Ca_Dll_Pll_Tracking_cc", gr::io_signature::make(1, 1, sizeof(gr_complex)),
           gr::io_signature::make(1, 1, sizeof(Gnss_Synchro))),
       d_dump_filename(dump_filename),
       d_acquisition_gnss_synchro(nullptr),

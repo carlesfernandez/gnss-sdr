@@ -90,6 +90,15 @@ glonass_l2_ca_dll_pll_make_tracking_cc(
 class Glonass_Ca_Dll_Pll_Tracking_cc : public gr::block
 {
 public:
+    struct GlonassSignalParams
+    {
+        double carrier_center_hz;
+        double code_rate_cps;
+        int32_t code_length_chips;
+        double code_period_s;
+        double freq_step_hz;
+    };
+
     ~Glonass_Ca_Dll_Pll_Tracking_cc();
 
     void set_channel(uint32_t channel);
@@ -120,15 +129,6 @@ private:
         float dll_bw_hz,
         float early_late_space_chips,
         GlonassBand band);
-
-    struct GlonassSignalParams
-    {
-        double carrier_center_hz;
-        double code_rate_cps;
-        int32_t code_length_chips;
-        double code_period_s;
-        double freq_step_hz;
-    };
 
     void check_carrier_phase_coherent_initialization();
 

@@ -85,7 +85,7 @@ public:
         int32_t code_length_chips;
         double code_period_s;
         double freq_step_hz;
-        void (*code_generator)(own::span<gr_complex> ca_code, int32_t delay_chips);
+        void (*code_generator)(own::span<gr_complex> ca_code, uint32_t delay_chips);
     };
 
     ~Glonass_Ca_Dll_Pll_C_Aid_Tracking_cc();

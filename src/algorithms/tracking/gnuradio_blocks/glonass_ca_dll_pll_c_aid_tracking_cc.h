@@ -1,5 +1,5 @@
 /*!
- * \file glonass_l1_ca_dll_pll_c_aid_tracking_cc.h
+ * \file glonass_ca_dll_pll_c_aid_tracking_cc.h
  * \brief  Implementation of a code DLL + carrier PLL tracking block
  * \author Gabriel Araujo, 2017. gabriel.araujo.5000(at)gmail.com
  * \author Luis Esteve, 2017. luis(at)epsilon-formacion.com
@@ -22,15 +22,14 @@
  * -----------------------------------------------------------------------------
  */
 
-#ifndef GNSS_SDR_GLONASS_L1_CA_DLL_PLL_C_AID_TRACKING_CC_H
-#define GNSS_SDR_GLONASS_L1_CA_DLL_PLL_C_AID_TRACKING_CC_H
+#ifndef GNSS_SDR_GLONASS_CA_DLL_PLL_C_AID_TRACKING_CC_H
+#define GNSS_SDR_GLONASS_CA_DLL_PLL_C_AID_TRACKING_CC_H
 
+#include "cpu_multicorrelator.h"
+#include "gnss_block_interface.h"
 #include "gnss_synchro.h"
 #include "tracking_2nd_DLL_filter.h"
 #include "tracking_FLL_PLL_filter.h"
-// #include "tracking_loop_filter.h"
-#include "cpu_multicorrelator.h"
-#include "gnss_block_interface.h"
 #include <gnuradio/block.h>
 #include <pmt/pmt.h>
 #include <volk_gnsssdr/volk_gnsssdr_alloc.h>  // for volk_gnsssdr::vector
@@ -45,30 +44,51 @@
  * \{ */
 
 
-class glonass_l1_ca_dll_pll_c_aid_tracking_cc;
+enum class GlonassBand
+{
+    L1,
+    L2
+};
 
-using glonass_l1_ca_dll_pll_c_aid_tracking_cc_sptr = gnss_shared_ptr<glonass_l1_ca_dll_pll_c_aid_tracking_cc>;
+class Glonass_Ca_Dll_Pll_C_Aid_Tracking_cc;
+
+using glonass_ca_dll_pll_c_aid_tracking_cc_sptr = gnss_shared_ptr<Glonass_Ca_Dll_Pll_C_Aid_Tracking_cc>;
+using glonass_l1_ca_dll_pll_c_aid_tracking_cc_sptr = glonass_ca_dll_pll_c_aid_tracking_cc_sptr;
+using glonass_l2_ca_dll_pll_c_aid_tracking_cc_sptr = glonass_ca_dll_pll_c_aid_tracking_cc_sptr;
+
+glonass_ca_dll_pll_c_aid_tracking_cc_sptr
+    glonass_ca_dll_pll_c_aid_make_tracking_cc(int64_t fs_in, uint32_t vector_length, bool dump,
+        const std::string& dump_filename, float pll_bw_hz, float dll_bw_hz, float pll_bw_narrow_hz,
+        float dll_bw_narrow_hz, int32_t extend_correlation_ms, float early_late_space_chips, GlonassBand band);
 
 glonass_l1_ca_dll_pll_c_aid_tracking_cc_sptr
-glonass_l1_ca_dll_pll_c_aid_make_tracking_cc(
-    int64_t fs_in, uint32_t vector_length,
-    bool dump,
-    const std::string& dump_filename,
-    float pll_bw_hz,
-    float dll_bw_hz,
-    float pll_bw_narrow_hz,
-    float dll_bw_narrow_hz,
-    int32_t extend_correlation_ms,
-    float early_late_space_chips);
+    glonass_l1_ca_dll_pll_c_aid_make_tracking_cc(int64_t fs_in, uint32_t vector_length, bool dump,
+        const std::string& dump_filename, float pll_bw_hz, float dll_bw_hz, float pll_bw_narrow_hz,
+        float dll_bw_narrow_hz, int32_t extend_correlation_ms, float early_late_space_chips);
+
+glonass_l2_ca_dll_pll_c_aid_tracking_cc_sptr
+    glonass_l2_ca_dll_pll_c_aid_make_tracking_cc(int64_t fs_in, uint32_t vector_length, bool dump,
+        const std::string& dump_filename, float pll_bw_hz, float dll_bw_hz, float pll_bw_narrow_hz,
+        float dll_bw_narrow_hz, int32_t extend_correlation_ms, float early_late_space_chips);
 
 
 /*!
  * \brief This class implements a DLL + PLL tracking loop block
  */
-class glonass_l1_ca_dll_pll_c_aid_tracking_cc : public gr::block
+class Glonass_Ca_Dll_Pll_C_Aid_Tracking_cc : public gr::block
 {
 public:
-    ~glonass_l1_ca_dll_pll_c_aid_tracking_cc();
+    struct GlonassSignalParams
+    {
+        double carrier_center_hz;
+        double code_rate_cps;
+        int32_t code_length_chips;
+        double code_period_s;
+        double freq_step_hz;
+        void (*code_generator)(own::span<gr_complex> ca_code, int32_t delay_chips);
+    };
+
+    ~Glonass_Ca_Dll_Pll_C_Aid_Tracking_cc();
 
     void set_channel(uint32_t channel);
     void set_gnss_synchro(Gnss_Synchro* p_gnss_synchro);
@@ -80,28 +100,14 @@ public:
     void forecast(int noutput_items, gr_vector_int& ninput_items_required);
 
 private:
-    friend glonass_l1_ca_dll_pll_c_aid_tracking_cc_sptr
-    glonass_l1_ca_dll_pll_c_aid_make_tracking_cc(
-        int64_t fs_in, uint32_t vector_length,
-        bool dump,
-        const std::string& dump_filename,
-        float pll_bw_hz,
-        float dll_bw_hz,
-        float pll_bw_narrow_hz,
-        float dll_bw_narrow_hz,
-        int32_t extend_correlation_ms,
-        float early_late_space_chips);
+    friend glonass_ca_dll_pll_c_aid_tracking_cc_sptr
+        glonass_ca_dll_pll_c_aid_make_tracking_cc(int64_t fs_in, uint32_t vector_length, bool dump,
+            const std::string& dump_filename, float pll_bw_hz, float dll_bw_hz, float pll_bw_narrow_hz,
+            float dll_bw_narrow_hz, int32_t extend_correlation_ms, float early_late_space_chips, GlonassBand band);
 
-    glonass_l1_ca_dll_pll_c_aid_tracking_cc(
-        int64_t fs_in, uint32_t vector_length,
-        bool dump,
-        const std::string& dump_filename,
-        float pll_bw_hz,
-        float dll_bw_hz,
-        float pll_bw_narrow_hz,
-        float dll_bw_narrow_hz,
-        int32_t extend_correlation_ms,
-        float early_late_space_chips);
+    Glonass_Ca_Dll_Pll_C_Aid_Tracking_cc(int64_t fs_in, uint32_t vector_length, bool dump,
+        const std::string& dump_filename, float pll_bw_hz, float dll_bw_hz, float pll_bw_narrow_hz,
+        float dll_bw_narrow_hz, int32_t extend_correlation_ms, float early_late_space_chips, GlonassBand band);
 
     void msg_handler_preamble_index(const pmt::pmt_t& msg);
 
@@ -117,7 +123,6 @@ private:
     Cpu_Multicorrelator multicorrelator_cpu;
 
     // PLL and DLL filter library
-    // Tracking_2nd_DLL_filter d_code_loop_filter;
     Tracking_2nd_DLL_filter d_code_loop_filter;
     Tracking_FLL_PLL_filter d_carrier_loop_filter;
 
@@ -133,8 +138,12 @@ private:
     std::map<std::string, std::string> systemName;
     std::string sys;
 
-    // tracking configuration vars
     Gnss_Synchro* d_acquisition_gnss_synchro;
+
+    GlonassBand d_band;
+    GlonassSignalParams d_params;
+
+    // tracking configuration vars
     int64_t d_fs_in;
     double d_glonass_freq_ch;
     double d_early_late_spc_chips;
@@ -199,7 +208,4 @@ private:
     bool d_dump;
 };
 
-
-/** \} */
-/** \} */
-#endif  // GNSS_SDR_GLONASS_L1_CA_DLL_PLL_C_AID_TRACKING_CC_H
+#endif  // GNSS_SDR_GLONASS_CA_DLL_PLL_C_AID_TRACKING_CC_H

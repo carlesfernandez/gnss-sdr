@@ -24,7 +24,7 @@
 #ifndef GNSS_SDR_GLONASS_L2_CA_DLL_PLL_TRACKING_H
 #define GNSS_SDR_GLONASS_L2_CA_DLL_PLL_TRACKING_H
 
-#include "glonass_l2_ca_dll_pll_tracking_cc.h"
+#include "glonass_ca_dll_pll_tracking_cc.h"
 #include "tracking_interface.h"
 #include <string>
 

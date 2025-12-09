@@ -23,6 +23,7 @@
 #include "glonass_l2_ca_dll_pll_tracking.h"
 #include "GLONASS_L1_L2_CA.h"
 #include "configuration_interface.h"
+#include "gnss_sdr_flags.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -48,6 +49,31 @@ void GlonassL2CaDllPllTracking::configure_tracking_parameters(const Configuratio
         {
             config_params().extend_correlation_symbols = 1;
         }
+    config_params().early_late_space_chips = configuration->property(role() + ".early_late_space_chips", static_cast<float>(0.5F));
+    config_params().pll_bw_hz = configuration->property(role() + ".pll_bw_hz", static_cast<float>(50.0));
+#if USE_GLOG_AND_GFLAGS
+    if (FLAGS_pll_bw_hz != 0.0)
+        {
+            config_params().pll_bw_hz = static_cast<float>(FLAGS_pll_bw_hz);
+        }
+#else
+    if (absl::GetFlag(FLAGS_pll_bw_hz) != 0.0)
+        {
+            config_params().pll_bw_hz = static_cast<float>(absl::GetFlag(FLAGS_pll_bw_hz));
+        }
+#endif
+    config_params().dll_bw_hz = configuration->property(role() + ".dll_bw_hz", static_cast<float>(2.0));
+#if USE_GLOG_AND_GFLAGS
+    if (FLAGS_dll_bw_hz != 0.0)
+        {
+            config_params().dll_bw_hz = static_cast<float>(FLAGS_dll_bw_hz);
+        }
+#else
+    if (absl::GetFlag(FLAGS_dll_bw_hz) != 0.0)
+        {
+            config_params().dll_bw_hz = static_cast<float>(absl::GetFlag(FLAGS_dll_bw_hz));
+        }
+#endif
     config_params().track_pilot = false;
     config_params().system = 'R';
     const std::array<char, 3> sig{'2', 'G', '\0'};

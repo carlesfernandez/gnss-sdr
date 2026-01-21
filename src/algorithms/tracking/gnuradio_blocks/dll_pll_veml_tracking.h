@@ -33,12 +33,16 @@
 #include <gnuradio/types.h>                   // for gr_vector_int, gr_vector...
 #include <pmt/pmt.h>                          // for pmt_t
 #include <volk_gnsssdr/volk_gnsssdr_alloc.h>  // for volk_gnsssdr::vector
+#include <algorithm>                          // for fill
+#include <cmath>                              // for abs
+#include <complex>                            // for complex
 #include <cstddef>                            // for size_t
 #include <cstdint>                            // for int32_t
 #include <fstream>                            // for ofstream
 #include <string>                             // for string
 #include <typeinfo>                           // for typeid
 #include <utility>                            // for pair
+#include <vector>                             // for vector
 
 /** \addtogroup Tracking
  * \{ */
@@ -53,6 +57,198 @@ class dll_pll_veml_tracking;
 using dll_pll_veml_tracking_sptr = gnss_shared_ptr<dll_pll_veml_tracking>;
 
 dll_pll_veml_tracking_sptr dll_pll_veml_make_tracking(const Dll_Pll_Conf &conf_);
+
+class HistogramBitSynchronizer
+{
+public:
+    struct Config
+    {
+        int bit_period_ms;
+        int epoch_ms;
+        int min_events_for_lock;
+        double dominance_ratio;
+        int stable_best_required;
+        float min_prompt_mag;
+        bool use_phase_dot_detector;
+
+        Config()
+            : bit_period_ms(20),
+              epoch_ms(1),
+              min_events_for_lock(30),
+              dominance_ratio(0.55),
+              stable_best_required(5),
+              min_prompt_mag(0.0f),
+              use_phase_dot_detector(true)
+        {
+        }
+    };
+
+    explicit HistogramBitSynchronizer(const Config &cfg)
+        : cfg_(cfg),
+          total_events_(0),
+          epoch_count_(0),
+          locked_(false),
+          edge_phase_(-1),
+          has_last_prompt_(false),
+          last_prompt_(0.0f, 0.0f),
+          has_last_sign_(false),
+          last_sign_(+1),
+          has_last_best_bin_(false),
+          last_best_bin_(0),
+          stable_best_count_(0)
+    {
+        hist_.assign(bins(), 0);
+    }
+
+    void reset()
+    {
+        std::fill(hist_.begin(), hist_.end(), 0);
+        total_events_ = 0;
+        epoch_count_ = 0;
+        locked_ = false;
+        edge_phase_ = -1;
+
+        has_last_prompt_ = false;
+        last_prompt_ = std::complex<float>(0.0f, 0.0f);
+
+        has_last_sign_ = false;
+        last_sign_ = +1;
+
+        has_last_best_bin_ = false;
+        last_best_bin_ = 0;
+        stable_best_count_ = 0;
+    }
+
+    bool update(const std::complex<float> &prompt, bool tracking_quality_ok)
+    {
+        const int N = bins();
+        const int phase = (N > 0) ? static_cast<int>(epoch_count_ % N) : 0;
+
+        ++epoch_count_;
+
+        if (!tracking_quality_ok || (std::abs(prompt) < cfg_.min_prompt_mag))
+            {
+                last_prompt_ = prompt;
+                has_last_prompt_ = true;
+                return false;
+            }
+
+        bool edge_event = false;
+
+        if (cfg_.use_phase_dot_detector)
+            {
+                if (has_last_prompt_)
+                    {
+                        const double dot = static_cast<double>(std::real(prompt * std::conj(last_prompt_)));
+                        edge_event = (dot < 0.0);
+                    }
+                last_prompt_ = prompt;
+                has_last_prompt_ = true;
+            }
+        else
+            {
+                const int s = (std::real(prompt) >= 0.0f) ? +1 : -1;
+                if (has_last_sign_)
+                    {
+                        edge_event = (s != last_sign_);
+                    }
+                last_sign_ = s;
+                has_last_sign_ = true;
+            }
+
+        if (edge_event && N > 0)
+            {
+                ++hist_[phase];
+                ++total_events_;
+            }
+
+        if (!locked_ && (total_events_ >= cfg_.min_events_for_lock))
+            {
+                int best_bin = 0;
+                int best_count = 0;
+                best_bin_and_count(best_bin, best_count);
+
+                const double ratio = (total_events_ > 0)
+                                         ? (static_cast<double>(best_count) / static_cast<double>(total_events_))
+                                         : 0.0;
+
+                if (!has_last_best_bin_ || (best_bin != last_best_bin_))
+                    {
+                        last_best_bin_ = best_bin;
+                        has_last_best_bin_ = true;
+                        stable_best_count_ = 1;
+                    }
+                else
+                    {
+                        ++stable_best_count_;
+                    }
+
+                if ((ratio >= cfg_.dominance_ratio) &&
+                    (stable_best_count_ >= cfg_.stable_best_required))
+                    {
+                        locked_ = true;
+                        edge_phase_ = best_bin;
+                        return true;
+                    }
+            }
+
+        return false;
+    }
+
+    bool locked() const { return locked_; }
+    int edge_phase() const { return edge_phase_; }
+
+    bool is_edge_epoch(std::int64_t k) const
+    {
+        if (!locked_ || edge_phase_ < 0) return false;
+        const int N = bins();
+        if (N <= 0) return false;
+        return (static_cast<int>(k % N) == edge_phase_);
+    }
+
+    int bins() const
+    {
+        const int N = (cfg_.epoch_ms > 0) ? (cfg_.bit_period_ms / cfg_.epoch_ms) : 0;
+        return (N > 0) ? N : 0;
+    }
+
+    const std::vector<int> &histogram() const { return hist_; }
+    std::int64_t total_events() const { return total_events_; }
+    std::int64_t epoch_count() const { return epoch_count_; }
+
+private:
+    void best_bin_and_count(int &best_bin, int &best_count) const
+    {
+        best_bin = 0;
+        best_count = (hist_.empty() ? 0 : hist_[0]);
+        for (int i = 1; i < static_cast<int>(hist_.size()); ++i)
+            {
+                if (hist_[i] > best_count)
+                    {
+                        best_count = hist_[i];
+                        best_bin = i;
+                    }
+            }
+    }
+
+    Config cfg_;
+    std::vector<int> hist_;
+    std::int64_t total_events_;
+    std::int64_t epoch_count_;
+
+    bool locked_;
+    int edge_phase_;
+
+    bool has_last_prompt_;
+    std::complex<float> last_prompt_;
+
+    bool has_last_sign_;
+    int last_sign_;
+
+    bool has_last_best_bin_;
+    int last_best_bin_;
+    int stable_best_count_;
+};
 
 /*!
  * \brief This class implements a code DLL + carrier PLL tracking block.
@@ -86,6 +282,7 @@ private:
     void log_data();
     bool cn0_and_tracking_lock_status(double coh_integration_time_s);
     bool acquire_secondary();
+    void configure_bit_synchronizer();
     int64_t uint64diff(uint64_t first, uint64_t second);
     int32_t save_matfile() const;
 
@@ -212,6 +409,8 @@ private:
     bool d_acc_carrier_phase_initialized;
     bool d_enable_extended_integration;
     bool d_Flag_PLL_180_deg_phase_locked;
+    bool d_use_histogram_bit_sync;
+    HistogramBitSynchronizer d_bit_sync;
 };
 
 

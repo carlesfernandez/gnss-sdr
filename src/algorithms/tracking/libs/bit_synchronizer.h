@@ -29,11 +29,151 @@
 
 
 /**
+ * @brief GLONASS biphase (Manchester) symbol synchronizer.
+ *
+ * Estimates the symbol boundary for GLONASS signals by correlating sign
+ * transitions against a biphase template. The algorithm returns lock once
+ * the dominant phase bin is stable and sufficiently strong.
+ */
+class GlonassBiphaseSymbolSynchronizer
+{
+public:
+    /**
+     * @brief Configuration parameters for GlonassBiphaseSymbolSynchronizer.
+     */
+    struct Config
+    {
+        /**
+         * @brief Symbol period in milliseconds (GLONASS C/A: 10 ms).
+         */
+        int symbol_period_ms;
+
+        /**
+         * @brief Coherent integration interval in milliseconds (typically 1 ms).
+         */
+        int epoch_ms;
+
+        /**
+         * @brief Minimum number of windows required before lock evaluation.
+         */
+        int min_windows_for_lock;
+
+        /**
+         * @brief Required consecutive best-bin stability before lock.
+         */
+        int stable_best_required;
+
+        /**
+         * @brief Minimum magnitude of the prompt correlator output.
+         */
+        float min_prompt_mag;
+
+        /**
+         * @brief Minimum normalized correlation score required for lock.
+         */
+        double min_norm_score;
+
+        /**
+         * @brief Select the sign detector.
+         *
+         * If true, uses dot(Pk, Pk-1) sign; otherwise uses sign(Re(Pk)).
+         */
+        bool use_phase_dot_sign;
+
+        Config()
+            : symbol_period_ms(10),
+              epoch_ms(1),
+              min_windows_for_lock(30),
+              stable_best_required(8),
+              min_prompt_mag(0.0f),
+              min_norm_score(0.7),
+              use_phase_dot_sign(true)
+        {
+        }
+    };
+
+    /**
+     * @brief Construct a GLONASS biphase symbol synchronizer.
+     */
+    explicit GlonassBiphaseSymbolSynchronizer(const Config& cfg);
+
+    /**
+     * @brief Reset the synchronizer state.
+     */
+    void reset();
+
+    /**
+     * @brief Update the synchronizer once per epoch.
+     *
+     * @return True only when lock is first declared.
+     */
+    bool update(const std::complex<float>& prompt, bool tracking_quality_ok);
+
+    /**
+     * @brief Query whether the synchronizer has achieved lock.
+     */
+    bool locked() const { return locked_; }
+
+    /**
+     * @brief Estimated symbol phase bin in [0..N-1], or -1 if not locked.
+     */
+    int symbol_phase() const { return symbol_phase_; }
+
+    /**
+     * @brief Predict whether an epoch index corresponds to the symbol boundary.
+     */
+    bool is_symbol_epoch(std::int64_t k) const;
+
+    /**
+     * @brief Number of bins used by the synchronizer.
+     */
+    int bins() const { return N_; }
+
+private:
+    static int compute_bins(const Config& cfg);
+    int compute_sign(const std::complex<float>& prompt);
+    void push_sign(int s);
+    bool buffer_full() const { return (fill_ >= N_); }
+    int correlation_score(int phase) const;
+
+    Config cfg_;
+    int N_;
+    std::vector<int> s_;
+    std::vector<int> template_;
+    int fill_{0};
+
+    std::int64_t epoch_count_;
+    std::int64_t windows_;
+
+    bool locked_;
+    int symbol_phase_;
+
+    bool has_last_prompt_;
+    std::complex<float> last_prompt_;
+
+    bool has_last_sign_;
+    int last_sign_;
+
+    bool has_last_best_;
+    int last_best_;
+    int stable_count_;
+};
+
+/**
  * @brief Histogram-based navigation data bit synchronizer.
  */
 class HistogramBitSynchronizer
 {
 public:
+    /**
+     * @brief Supported synchronization schemes.
+     */
+    enum class Scheme
+    {
+        kHistogram,
+        kGlonassBiphase
+    };
+
     /**
      * @brief Configuration parameters for HistogramBitSynchronizer.
      *
@@ -42,6 +182,11 @@ public:
      */
     struct Config
     {
+        /**
+         * @brief Selected synchronization scheme.
+         */
+        Scheme scheme;
+
         /**
          * @brief Navigation data bit period in milliseconds.
          *
@@ -126,7 +271,8 @@ public:
         bool use_phase_dot_detector;
 
         Config()
-            : bit_period_ms(20),
+            : scheme(Scheme::kHistogram),
+              bit_period_ms(20),
               epoch_ms(1),
               min_events_for_lock(30),
               dominance_ratio(0.6),
@@ -158,9 +304,14 @@ public:
           locked_(false),
           has_last_prompt_(false),
           has_last_sign_(false),
-          has_last_best_bin_(false)
+          has_last_best_bin_(false),
+          glonass_sync_(GlonassBiphaseSymbolSynchronizer::Config())
     {
         hist_.assign(bins(), 0);
+        if (cfg_.scheme == Scheme::kGlonassBiphase)
+            {
+                glonass_sync_ = GlonassBiphaseSymbolSynchronizer(build_glonass_config(cfg_));
+            }
     }
 
     /**
@@ -199,7 +350,10 @@ public:
      *
      * @return True if lock has been declared, false otherwise.
      */
-    bool locked() const { return locked_; }
+    bool locked() const
+    {
+        return (cfg_.scheme == Scheme::kGlonassBiphase) ? glonass_sync_.locked() : locked_;
+    }
 
     /**
      * @brief Get the estimated bit edge phase bin.
@@ -210,7 +364,10 @@ public:
      *
      * @return Estimated edge phase bin index, or -1 if not locked.
      */
-    int edge_phase() const { return edge_phase_; }
+    int edge_phase() const
+    {
+        return (cfg_.scheme == Scheme::kGlonassBiphase) ? glonass_sync_.symbol_phase() : edge_phase_;
+    }
 
     /**
      * @brief Predict whether a given epoch index corresponds to a bit edge.
@@ -224,7 +381,10 @@ public:
      * @param k Epoch index (0-based, consistent with the caller's epoch counting).
      * @return True if @p k is the predicted edge epoch; false otherwise.
      */
-    bool is_edge_epoch(std::int64_t k) const;
+    bool is_edge_epoch(std::int64_t k) const
+    {
+        return (cfg_.scheme == Scheme::kGlonassBiphase) ? glonass_sync_.is_symbol_epoch(k) : is_histogram_edge_epoch(k);
+    }
 
     /**
      * @brief Return the number of histogram bins.
@@ -234,7 +394,10 @@ public:
      *
      * @return Number of histogram bins.
      */
-    int bins() const;
+    int bins() const
+    {
+        return (cfg_.scheme == Scheme::kGlonassBiphase) ? glonass_sync_.bins() : histogram_bins();
+    }
 
     /**
      * @brief Access the internal histogram (read-only).
@@ -264,6 +427,9 @@ public:
     std::int64_t get_epoch_count() const { return epoch_count_; }
 
 private:
+    static GlonassBiphaseSymbolSynchronizer::Config build_glonass_config(const Config& cfg);
+    bool is_histogram_edge_epoch(std::int64_t k) const;
+    int histogram_bins() const;
     void best_bin_and_count(int& best_bin, int& best_count) const;
 
     Config cfg_;
@@ -284,6 +450,8 @@ private:
     bool has_last_prompt_;    // Prompt history (for dot detector)
     bool has_last_sign_;      // Sign history (for simple detector)
     bool has_last_best_bin_;  // Stability tracking for best bin
+
+    GlonassBiphaseSymbolSynchronizer glonass_sync_;
 };
 
 /** \} */

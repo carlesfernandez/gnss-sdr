@@ -140,7 +140,7 @@ void GNSSFlowgraph::init()
             galileo_tow_map_ = nullptr;
         }
 
-    if (configuration_->property("Channels_1B.count", 0) > 0 && configuration_->property("GNSS-SDR.osnma_enable", true))
+    if ((configuration_->property("Channels_1B.count", 0) > 0 || configuration_->property("Channels_7X.count", 0) > 0) && configuration_->property("GNSS-SDR.osnma_enable", true))
         {
             enable_osnma_rx_ = true;
             const auto certFilePath = configuration_->property("GNSS-SDR.osnma_public_key", CRTFILE_DEFAULT);
@@ -1424,6 +1424,7 @@ int GNSSFlowgraph::connect_osnma()
     try
         {
             bool gal_e1_channels = false;
+            bool gal_e5b_channels = false;
             for (int i = 0; i < channels_count_; i++)
                 {
                     const std::string gnss_signal = channels_.at(i)->get_signal().get_signal_str();
@@ -1433,13 +1434,16 @@ int GNSSFlowgraph::connect_osnma()
                             top_block_->msg_connect(channels_.at(i)->get_right_block(), pmt::mp("OSNMA_from_TLM"), osnma_rx_, pmt::mp("OSNMA_from_TLM"));
                             gal_e1_channels = true;
                             break;
-
+                        case evGAL_7X:
+                            top_block_->msg_connect(channels_.at(i)->get_right_block(), pmt::mp("OSNMA_from_TLM"), osnma_rx_, pmt::mp("OSNMA_from_TLM"));
+                            gal_e5b_channels = true;
+                            break;
                         default:
                             break;
                         }
                 }
 
-            if (gal_e1_channels == true)
+            if (gal_e1_channels == true || gal_e5b_channels == true)
                 {
                     top_block_->msg_connect(osnma_rx_, pmt::mp("OSNMA_to_PVT"), pvt_->get_left_block(), pmt::mp("OSNMA_to_PVT"));
                 }

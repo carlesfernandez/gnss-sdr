@@ -145,7 +145,7 @@ private:
     bool d_enable_reed_solomon_inav;
     bool d_valid_timetag;
     bool d_E6_TOW_set;
-    bool d_there_are_e1_channels;
+    bool d_there_are_inav_channels;
     bool d_there_are_e6_channels;
     bool d_use_ced;
     bool d_tow_to_trk;

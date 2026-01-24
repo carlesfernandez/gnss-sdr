@@ -112,16 +112,16 @@ galileo_telemetry_decoder_gs::galileo_telemetry_decoder_gs(
                       d_enable_reed_solomon_inav(false),
                       d_valid_timetag(false),
                       d_E6_TOW_set(false),
-                      d_there_are_e1_channels(conf.there_are_e1_channels),
+                      d_there_are_inav_channels(conf.there_are_inav_channels),
                       d_there_are_e6_channels(conf.there_are_e6_channels),
                       d_use_ced(conf.use_ced),
                       d_tow_to_trk(conf.tow_to_trk)
 {
     configure_basic_outputs();
 
-    if (d_there_are_e1_channels)
+    if (d_there_are_inav_channels)
         {
-            // register OSM out
+            // register OSNMA output port
             this->message_port_register_out(pmt::mp("OSNMA_from_TLM"));
         }
 
@@ -436,7 +436,7 @@ void galileo_telemetry_decoder_gs::decode_INAV_word(float *page_part_symbols, in
 
     // 4. Push the new navigation data to the queues
     // extract OSNMA bits, reset container.
-    if (d_inav_nav.get_osnma_adkd_0_12_nav_bits().size() == 549 && d_band == '1')
+    if (d_inav_nav.get_osnma_adkd_0_12_nav_bits().size() == 549 && (d_band == '1' || d_band == '7'))
         {
             DLOG(INFO) << "Galileo OSNMA: new ADKD=0/12 navData from " << d_satellite << " at TOW_sf=" << d_inav_nav.get_TOW5() - 25;
             const auto tmp_obj_osnma = std::make_shared<std::tuple<uint32_t, std::string, uint32_t>>(  // < PRNd , navDataBits, TOW_Sosf>
@@ -446,7 +446,7 @@ void galileo_telemetry_decoder_gs::decode_INAV_word(float *page_part_symbols, in
             this->message_port_pub(pmt::mp("OSNMA_from_TLM"), pmt::make_any(tmp_obj_osnma));
             d_inav_nav.reset_osnma_nav_bits_adkd0_12();
         }
-    if (d_inav_nav.get_osnma_adkd_4_nav_bits().size() == 141 && d_band == '1')
+    if (d_inav_nav.get_osnma_adkd_4_nav_bits().size() == 141 && (d_band == '1' || d_band == '7'))
         {
             DLOG(INFO) << "Galileo OSNMA: new ADKD=4 navData from " << d_satellite << " at TOW_sf=" << d_inav_nav.get_TOW6() - 5;
             const auto tmp_obj = std::make_shared<std::tuple<uint32_t, std::string, uint32_t>>(  // < PRNd , navDataBits, TOW_Sosf> // TODO conversion from W6 to W_Start_of_subframe

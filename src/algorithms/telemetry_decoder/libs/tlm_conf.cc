@@ -31,9 +31,9 @@ void Tlm_Conf::SetFromConfiguration(const ConfigurationInterface *configuration,
     const std::string default_crc_stats_dumpname("telemetry_crc_stats");
     dump_crc_stats_filename = configuration->property(role + ".dump_crc_stats_filename", default_crc_stats_dumpname);
     enable_navdata_monitor = configuration->property("NavDataMonitor.enable_monitor", false);
-    if (configuration->property("Channels_1B.count", 0) > 0)
+    if ((configuration->property("Channels_1B.count", 0) > 0 || configuration->property("Channels_7X.count", 0) > 0))
         {
-            there_are_e1_channels = true;
+            there_are_inav_channels = true;
         }
 
     if (configuration->property("Channels_E6.count", 0) > 0)

@@ -136,6 +136,8 @@ dll_pll_veml_tracking::dll_pll_veml_tracking(const Dll_Pll_Conf &conf_)
       d_acc_carrier_phase_initialized(false),
       d_Flag_PLL_180_deg_phase_locked(false),
       d_use_histogram_bit_sync(false),
+      d_wait_for_bit_edge(false),
+      d_bit_sync_lock_epoch(0),
       d_bit_sync(HistogramBitSynchronizer::Config())
 {
 #if GNURADIO_GREATER_THAN_38
@@ -1287,6 +1289,8 @@ void dll_pll_veml_tracking::clear_tracking_vars()
     d_carr_ph_history.clear();
     d_code_ph_history.clear();
     d_bit_sync.reset();
+    d_wait_for_bit_edge = false;
+    d_bit_sync_lock_epoch = 0;
 }
 
 
@@ -1296,6 +1300,8 @@ void dll_pll_veml_tracking::configure_bit_synchronizer()
     if (!d_use_histogram_bit_sync)
         {
             d_bit_sync.reset();
+            d_wait_for_bit_edge = false;
+            d_bit_sync_lock_epoch = 0;
             return;
         }
 
@@ -1303,6 +1309,8 @@ void dll_pll_veml_tracking::configure_bit_synchronizer()
     cfg.bit_period_ms = d_symbols_per_bit * d_correlation_length_ms;
     cfg.epoch_ms = d_correlation_length_ms;
     d_bit_sync = HistogramBitSynchronizer(cfg);
+    d_wait_for_bit_edge = false;
+    d_bit_sync_lock_epoch = 0;
 }
 
 
@@ -1945,13 +1953,23 @@ int dll_pll_veml_tracking::general_work(int noutput_items __attribute__((unused)
                                     {
                                         if (d_use_histogram_bit_sync)
                                             {
-                                                next_state = d_bit_sync.update(d_P_accu, true);
-                                                if (next_state)
+                                                if (d_bit_sync.update(d_P_accu, true))
                                                     {
+                                                        if (!d_wait_for_bit_edge)
+                                                            {
+                                                                d_wait_for_bit_edge = true;
+                                                                d_bit_sync_lock_epoch = d_bit_sync.epoch_count();
+                                                            }
                                                         LOG(INFO) << d_systemName << " " << d_signal_pretty_name << " histogram bit synchronization locked in channel " << d_channel
                                                                   << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN);
                                                         std::cout << d_systemName << " " << d_signal_pretty_name << " histogram bit synchronization locked in channel " << d_channel
                                                                   << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
+                                                    }
+                                                if (d_wait_for_bit_edge &&
+                                                    d_bit_sync.is_edge_epoch(d_bit_sync.epoch_count()) &&
+                                                    d_bit_sync.epoch_count() > d_bit_sync_lock_epoch)
+                                                    {
+                                                        next_state = true;
                                                     }
                                             }
 
@@ -1983,6 +2001,7 @@ int dll_pll_veml_tracking::general_work(int noutput_items __attribute__((unused)
                             }
                         if (next_state)
                             {  // reset extended correlator
+                                d_wait_for_bit_edge = false;
                                 d_VE_accu = gr_complex(0.0, 0.0);
                                 d_E_accu = gr_complex(0.0, 0.0);
                                 d_P_accu = gr_complex(0.0, 0.0);

@@ -410,6 +410,8 @@ private:
     bool d_enable_extended_integration;
     bool d_Flag_PLL_180_deg_phase_locked;
     bool d_use_histogram_bit_sync;
+    bool d_wait_for_bit_edge;
+    std::int64_t d_bit_sync_lock_epoch;
     HistogramBitSynchronizer d_bit_sync;
 };
 

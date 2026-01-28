@@ -136,7 +136,9 @@ dll_pll_veml_tracking::dll_pll_veml_tracking(const Dll_Pll_Conf &conf_)
       d_dump_mat(d_trk_parameters.dump_mat && d_dump),
       d_acc_carrier_phase_initialized(false),
       d_Flag_PLL_180_deg_phase_locked(false),
-      d_use_histogram_bit_sync(false)
+      d_use_histogram_bit_sync(false),
+      d_wait_for_bit_edge(false),
+      d_bit_sync_lock_epoch(0)
 {
 #if GNURADIO_GREATER_THAN_38
     this->set_relative_rate(1, static_cast<uint64_t>(d_trk_parameters.vector_length));
@@ -1287,6 +1289,8 @@ void dll_pll_veml_tracking::clear_tracking_vars()
     d_carr_ph_history.clear();
     d_code_ph_history.clear();
     d_bit_sync.reset();
+    d_wait_for_bit_edge = false;
+    d_bit_sync_lock_epoch = 0;
 }
 
 
@@ -1945,13 +1949,25 @@ int dll_pll_veml_tracking::general_work(int noutput_items __attribute__((unused)
                                     {
                                         if (d_use_histogram_bit_sync)
                                             {
-                                                next_state = d_bit_sync.update(d_P_accu, true);
-                                                if (next_state)
+                                                const bool bit_sync_locked_now = d_bit_sync.update(d_P_accu, true);
+                                                if (bit_sync_locked_now)
                                                     {
                                                         LOG(INFO) << d_systemName << " " << d_signal_pretty_name << " histogram bit synchronization locked in channel " << d_channel
                                                                   << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN);
                                                         std::cout << d_systemName << " " << d_signal_pretty_name << " histogram bit synchronization locked in channel " << d_channel
                                                                   << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
+                                                        d_wait_for_bit_edge = true;
+                                                        d_bit_sync_lock_epoch = d_bit_sync.get_epoch_count();
+                                                    }
+
+                                                if (d_wait_for_bit_edge && d_bit_sync.locked())
+                                                    {
+                                                        const int64_t epoch = d_bit_sync.get_epoch_count();
+                                                        if (d_bit_sync.is_edge_epoch(epoch) && epoch != d_bit_sync_lock_epoch)
+                                                            {
+                                                                next_state = true;
+                                                                d_wait_for_bit_edge = false;
+                                                            }
                                                     }
                                             }
 

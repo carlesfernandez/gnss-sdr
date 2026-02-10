@@ -119,6 +119,7 @@ private:
 
     Dll_Pll_Conf_Fpga d_trk_parameters;
     HistogramBitSynchronizer d_bit_sync;
+    GlonassBiphaseSymbolSynchronizer d_glonass_bit_sync;
     Exponential_Smoother d_cn0_smoother;
     Exponential_Smoother d_carrier_lock_test_smoother;
 
@@ -245,6 +246,7 @@ private:
     bool d_sc_demodulate_enabled;
     bool d_Flag_PLL_180_deg_phase_locked;
     bool d_use_histogram_bit_sync;
+    bool d_use_glonass_biphase_sync;
     bool d_wait_for_bit_edge{false};
 };
 

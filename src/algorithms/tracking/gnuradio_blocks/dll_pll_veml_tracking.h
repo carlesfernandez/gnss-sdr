@@ -103,6 +103,7 @@ private:
     Tracking_FLL_PLL_filter d_carrier_loop_filter;
 
     HistogramBitSynchronizer d_bit_sync;
+    GlonassBiphaseSymbolSynchronizer d_glonass_bit_sync;
 
     Gnss_Synchro *d_acquisition_gnss_synchro;
 
@@ -218,6 +219,7 @@ private:
     bool d_enable_extended_integration;
     bool d_Flag_PLL_180_deg_phase_locked;
     bool d_use_histogram_bit_sync;
+    bool d_use_glonass_biphase_sync;
     bool d_wait_for_bit_edge{false};
 };
 

@@ -181,3 +181,180 @@ int HistogramBitSynchronizer::epochs_until_next_edge() const
     // 1+ -> number of epochs to wait until the next bit boundary
     return (edge_phase_ - cur_phase + B) % B;
 }
+
+
+GlonassBiphaseSymbolSynchronizer::GlonassBiphaseSymbolSynchronizer(const Config& cfg)
+    : cfg_(cfg),
+      N_(compute_bins(cfg)),
+      s_(),
+      biphase_template_(),
+      fill_(0),
+      epoch_count_(0),
+      windows_(0),
+      locked_(false),
+      symbol_phase_(-1),
+      has_last_prompt_(false),
+      last_prompt_(0.0F, 0.0F),
+      has_last_best_(false),
+      last_best_(0),
+      stable_count_(0)
+{
+    s_.assign(N_, 0);
+    biphase_template_.assign(N_, 0);
+    for (int i = 0; i < N_; ++i)
+        {
+            biphase_template_[i] = (i < (N_ / 2)) ? +1 : -1;
+        }
+}
+
+
+void GlonassBiphaseSymbolSynchronizer::reset()
+{
+    std::fill(s_.begin(), s_.end(), 0);
+    fill_ = 0;
+    epoch_count_ = 0;
+    windows_ = 0;
+    locked_ = false;
+    symbol_phase_ = -1;
+
+    has_last_prompt_ = false;
+    last_prompt_ = std::complex<float>(0.0F, 0.0F);
+
+    has_last_best_ = false;
+    last_best_ = 0;
+    stable_count_ = 0;
+}
+
+
+bool GlonassBiphaseSymbolSynchronizer::update(const std::complex<float>& prompt, bool tracking_quality_ok)
+{
+    if (N_ <= 0)
+        {
+            ++epoch_count_;
+            return false;
+        }
+
+    ++epoch_count_;
+
+    if (!tracking_quality_ok || (std::abs(prompt) < cfg_.min_prompt_mag))
+        {
+            // Refresh prompt history used by phase-dot sign extraction.
+            last_prompt_ = prompt;
+            has_last_prompt_ = true;
+            return false;
+        }
+
+    const int sign = compute_sign(prompt);
+    push_sign(sign);
+
+    if (!buffer_full())
+        {
+            return false;
+        }
+
+    int best_p = 0;
+    int best_score = -1;
+    for (int p = 0; p < N_; ++p)
+        {
+            const int score = std::abs(correlation_score(p));
+            if (score > best_score)
+                {
+                    best_score = score;
+                    best_p = p;
+                }
+        }
+
+    ++windows_;
+
+    const double norm_score = static_cast<double>(best_score) / static_cast<double>(N_);
+
+    if (!has_last_best_ || (best_p != last_best_))
+        {
+            last_best_ = best_p;
+            has_last_best_ = true;
+            stable_count_ = 1;
+        }
+    else
+        {
+            ++stable_count_;
+        }
+
+    if (!locked_ &&
+        (windows_ >= cfg_.min_windows_for_lock) &&
+        (norm_score >= cfg_.min_norm_score) &&
+        (stable_count_ >= cfg_.stable_best_required))
+        {
+            locked_ = true;
+            symbol_phase_ = best_p;
+            return true;
+        }
+
+    return false;
+}
+
+
+bool GlonassBiphaseSymbolSynchronizer::is_symbol_epoch(std::int64_t k) const
+{
+    if (!locked_ || symbol_phase_ < 0 || N_ <= 0)
+        {
+            return false;
+        }
+    return (static_cast<int>(k % N_) == symbol_phase_);
+}
+
+
+int GlonassBiphaseSymbolSynchronizer::compute_bins(const Config& cfg)
+{
+    if (cfg.epoch_ms <= 0)
+        {
+            return 0;
+        }
+    const int N = cfg.symbol_period_ms / cfg.epoch_ms;
+    return (N > 0) ? N : 0;
+}
+
+
+int GlonassBiphaseSymbolSynchronizer::compute_sign(const std::complex<float>& prompt)
+{
+    if (cfg_.use_phase_dot_sign)
+        {
+            int s = +1;
+            if (has_last_prompt_)
+                {
+                    const double dot = static_cast<double>(std::real(prompt * std::conj(last_prompt_)));
+                    s = (dot >= 0.0) ? +1 : -1;
+                }
+            last_prompt_ = prompt;
+            has_last_prompt_ = true;
+            return s;
+        }
+
+    return (std::real(prompt) >= 0.0F) ? +1 : -1;
+}
+
+
+void GlonassBiphaseSymbolSynchronizer::push_sign(int s)
+{
+    for (int i = 0; i < N_ - 1; ++i)
+        {
+            s_[i] = s_[i + 1];
+        }
+    s_[N_ - 1] = s;
+
+    if (fill_ < N_)
+        {
+            ++fill_;
+        }
+}
+
+
+int GlonassBiphaseSymbolSynchronizer::correlation_score(int phase) const
+{
+    int sum = 0;
+    for (int i = 0; i < N_; ++i)
+        {
+            const int t = biphase_template_[(i + phase) % N_];
+            sum += s_[i] * t;
+        }
+    return sum;
+}

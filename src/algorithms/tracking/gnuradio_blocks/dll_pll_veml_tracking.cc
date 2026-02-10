@@ -1951,17 +1951,29 @@ int dll_pll_veml_tracking::general_work(int noutput_items __attribute__((unused)
                                     }
                                 else if (d_symbols_per_bit > 1)  // Signal does not have secondary code. Search a bit transition by sign change
                                     {
-                                        if (d_use_histogram_bit_sync)
+                                        if (d_use_histogram_bit_sync || d_use_glonass_biphase_sync)
                                             {
                                                 const bool lock_event = d_bit_sync.update(d_P_accu, true);
                                                 if (lock_event)
                                                     {
                                                         d_wait_for_bit_edge = true;
                                                         const std::int64_t k_now = d_bit_sync.get_epoch_count() - 1;
-                                                        int wait = d_bit_sync.epochs_until_next_edge() - 1;
-                                                        if (wait < 0)
+                                                        int wait = 0;
+                                                        if (d_use_glonass_biphase_sync)
                                                             {
-                                                                wait = wait + d_bit_sync.bins();
+                                                                wait = d_bit_sync.edge_phase() - static_cast<int>(k_now % d_bit_sync.bins());
+                                                                if (wait < 0)
+                                                                    {
+                                                                        wait += d_bit_sync.bins();
+                                                                    }
+                                                            }
+                                                        else
+                                                            {
+                                                                wait = d_bit_sync.epochs_until_next_edge() - 1;
+                                                                if (wait < 0)
+                                                                    {
+                                                                        wait = wait + d_bit_sync.bins();
+                                                                    }
                                                             }
                                                         d_bit_sync_target_epoch = k_now + wait;
                                                     }
@@ -1972,40 +1984,22 @@ int dll_pll_veml_tracking::general_work(int noutput_items __attribute__((unused)
                                                             {
                                                                 next_state = true;
                                                                 d_wait_for_bit_edge = false;
-                                                                d_use_histogram_bit_sync = false;  // disable histogram bit sync after first lock to avoid false lock events
-                                                                LOG(INFO) << d_systemName << " " << d_signal_pretty_name << " histogram bit synchronization locked in channel " << d_channel
-                                                                          << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN);
-                                                                std::cout << d_systemName << " " << d_signal_pretty_name << " histogram bit synchronization locked in channel " << d_channel
-                                                                          << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
-                                                            }
-                                                    }
-                                            }
-                                        else if (d_use_glonass_biphase_sync)
-                                            {
-                                                const bool lock_event = d_bit_sync.update(d_P_accu, true);
-                                                if (lock_event)
-                                                    {
-                                                        d_wait_for_bit_edge = true;
-                                                        const std::int64_t k_now = d_bit_sync.get_epoch_count() - 1;
-                                                        int wait = d_bit_sync.edge_phase() - static_cast<int>(k_now % d_bit_sync.bins());
-                                                        if (wait < 0)
-                                                            {
-                                                                wait += d_bit_sync.bins();
-                                                            }
-                                                        d_bit_sync_target_epoch = k_now + wait;
-                                                    }
-                                                if (d_wait_for_bit_edge)
-                                                    {
-                                                        const std::int64_t k_now = d_bit_sync.get_epoch_count() - 1;
-                                                        if (k_now == d_bit_sync_target_epoch)
-                                                            {
-                                                                next_state = true;
-                                                                d_wait_for_bit_edge = false;
-                                                                d_use_glonass_biphase_sync = false;
-                                                                LOG(INFO) << d_systemName << " " << d_signal_pretty_name << " GLONASS biphase symbol synchronization locked in channel " << d_channel
-                                                                          << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN);
-                                                                std::cout << d_systemName << " " << d_signal_pretty_name << " GLONASS biphase symbol synchronization locked in channel " << d_channel
-                                                                          << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
+                                                                if (d_use_glonass_biphase_sync)
+                                                                    {
+                                                                        d_use_glonass_biphase_sync = false;
+                                                                        LOG(INFO) << d_systemName << " " << d_signal_pretty_name << " GLONASS biphase symbol synchronization locked in channel " << d_channel
+                                                                                  << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN);
+                                                                        std::cout << d_systemName << " " << d_signal_pretty_name << " GLONASS biphase symbol synchronization locked in channel " << d_channel
+                                                                                  << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
+                                                                    }
+                                                                else
+                                                                    {
+                                                                        d_use_histogram_bit_sync = false;  // disable histogram bit sync after first lock to avoid false lock events
+                                                                        LOG(INFO) << d_systemName << " " << d_signal_pretty_name << " histogram bit synchronization locked in channel " << d_channel
+                                                                                  << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN);
+                                                                        std::cout << d_systemName << " " << d_signal_pretty_name << " histogram bit synchronization locked in channel " << d_channel
+                                                                                  << " for satellite " << Gnss_Satellite(d_systemName, d_acquisition_gnss_synchro->PRN) << '\n';
+                                                                    }
                                                             }
                                                     }
                                             }

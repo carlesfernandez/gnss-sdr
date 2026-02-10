@@ -119,7 +119,6 @@ private:
 
     Dll_Pll_Conf_Fpga d_trk_parameters;
     HistogramBitSynchronizer d_bit_sync;
-    GlonassBiphaseSymbolSynchronizer d_glonass_bit_sync;
     Exponential_Smoother d_cn0_smoother;
     Exponential_Smoother d_carrier_lock_test_smoother;
 

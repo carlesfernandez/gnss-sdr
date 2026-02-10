@@ -103,7 +103,6 @@ private:
     Tracking_FLL_PLL_filter d_carrier_loop_filter;
 
     HistogramBitSynchronizer d_bit_sync;
-    GlonassBiphaseSymbolSynchronizer d_glonass_bit_sync;
 
     Gnss_Synchro *d_acquisition_gnss_synchro;
 

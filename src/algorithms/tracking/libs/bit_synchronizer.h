@@ -34,6 +34,12 @@
 class HistogramBitSynchronizer
 {
 public:
+    enum class SynchronizationModel
+    {
+        HistogramBitEdge,
+        GlonassBiphaseSymbol
+    };
+
     /**
      * @brief Configuration parameters for HistogramBitSynchronizer.
      *
@@ -125,6 +131,12 @@ public:
          */
         bool use_phase_dot_detector;
 
+        // GLONASS biphase mode settings
+        SynchronizationModel synchronization_model;
+        int min_windows_for_lock;
+        double min_norm_score;
+        bool use_phase_dot_sign;
+
         Config()
             : bit_period_ms(20),
               epoch_ms(1),
@@ -132,7 +144,11 @@ public:
               dominance_ratio(0.6),
               stable_best_required(5),
               min_prompt_mag(0.0f),
-              use_phase_dot_detector(true)
+              use_phase_dot_detector(true),
+              synchronization_model(SynchronizationModel::HistogramBitEdge),
+              min_windows_for_lock(30),
+              min_norm_score(0.7),
+              use_phase_dot_sign(true)
         {
         }
     };
@@ -158,9 +174,19 @@ public:
           locked_(false),
           has_last_prompt_(false),
           has_last_sign_(false),
-          has_last_best_bin_(false)
+          has_last_best_bin_(false),
+          s_(),
+          biphase_template_(),
+          fill_(0),
+          windows_(0)
     {
         hist_.assign(bins(), 0);
+        s_.assign(bins(), 0);
+        biphase_template_.assign(bins(), 0);
+        for (int i = 0; i < bins(); ++i)
+            {
+                biphase_template_[i] = (i < (bins() / 2)) ? +1 : -1;
+            }
     }
 
     /**
@@ -288,6 +314,9 @@ public:
 
 private:
     void best_bin_and_count(int& best_bin, int& best_count) const;
+    int compute_sign(const std::complex<float>& prompt);
+    void push_sign(int s);
+    int correlation_score(int phase) const;
 
     Config cfg_;
     std::vector<int> hist_;
@@ -306,83 +335,12 @@ private:
     bool has_last_prompt_;    // Prompt history (for dot detector)
     bool has_last_sign_;      // Sign history (for simple detector)
     bool has_last_best_bin_;  // Stability tracking for best bin
-};
 
-
-/**
- * @brief Biphase-symbol synchronizer tailored to GLONASS-like Manchester-coded data.
- *
- * This synchronizer estimates the symbol phase by correlating an epoch-wise polarity
- * sign sequence against a biphase (+1/-1) template over one symbol period.
- */
-class GlonassBiphaseSymbolSynchronizer
-{
-public:
-    /**
-     * @brief Configuration parameters for GlonassBiphaseSymbolSynchronizer.
-     */
-    struct Config
-    {
-        int symbol_period_ms;      ///< Symbol period in milliseconds (GLONASS C/A: 10 ms).
-        int epoch_ms;              ///< Update cadence in milliseconds.
-        int min_windows_for_lock;  ///< Minimum evaluated windows before lock attempt.
-        int stable_best_required;  ///< Required consecutive stable best phases.
-        float min_prompt_mag;      ///< Prompt magnitude gate.
-        double min_norm_score;     ///< Minimum normalized correlation score for lock.
-        bool use_phase_dot_sign;   ///< Sign from dot(Pk,Pk-1) if true, else sign(Re(Pk)).
-
-        Config()
-            : symbol_period_ms(10),
-              epoch_ms(1),
-              min_windows_for_lock(30),
-              stable_best_required(8),
-              min_prompt_mag(0.0F),
-              min_norm_score(0.7),
-              use_phase_dot_sign(true)
-        {
-        }
-    };
-
-    explicit GlonassBiphaseSymbolSynchronizer(const Config& cfg);
-
-    void reset();
-    bool update(const std::complex<float>& prompt, bool tracking_quality_ok);
-
-    bool locked() const { return locked_; }
-    int symbol_phase() const { return symbol_phase_; }
-    int bins() const { return N_; }
-    std::int64_t get_epoch_count() const { return epoch_count_; }
-
-    /**
-     * @brief Check whether epoch @p k matches the estimated symbol phase.
-     */
-    bool is_symbol_epoch(std::int64_t k) const;
-
-private:
-    static int compute_bins(const Config& cfg);
-    int compute_sign(const std::complex<float>& prompt);
-    void push_sign(int s);
-    bool buffer_full() const { return (fill_ >= N_); }
-    int correlation_score(int phase) const;
-
-    Config cfg_;
-    int N_;
+    // GLONASS biphase mode state
     std::vector<int> s_;
     std::vector<int> biphase_template_;
     int fill_;
-
-    std::int64_t epoch_count_;
     std::int64_t windows_;
-
-    bool locked_;
-    int symbol_phase_;
-
-    bool has_last_prompt_;
-    std::complex<float> last_prompt_;
-
-    bool has_last_best_;
-    int last_best_;
-    int stable_count_;
 };
 
 /** \} */

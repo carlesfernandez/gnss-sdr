@@ -94,7 +94,6 @@ dll_pll_veml_tracking::dll_pll_veml_tracking(const Dll_Pll_Conf &conf_)
           gr::io_signature::make(1, 1, sizeof(Gnss_Synchro))),
       d_trk_parameters(conf_),
       d_bit_sync(HistogramBitSynchronizer::Config()),
-      d_glonass_bit_sync(GlonassBiphaseSymbolSynchronizer::Config()),
       d_acquisition_gnss_synchro(nullptr),
       d_code_chip_rate(0.0),
       d_acq_code_phase_samples(0.0),
@@ -1289,7 +1288,6 @@ void dll_pll_veml_tracking::clear_tracking_vars()
     d_carr_ph_history.clear();
     d_code_ph_history.clear();
     d_bit_sync.reset();
-    d_glonass_bit_sync.reset();
 }
 
 
@@ -1299,41 +1297,20 @@ void dll_pll_veml_tracking::configure_bit_synchronizer()
     d_use_glonass_biphase_sync = can_use_bit_sync && (d_systemName == "Glonass");
     d_use_histogram_bit_sync = can_use_bit_sync && !d_use_glonass_biphase_sync;
 
-    if (d_use_histogram_bit_sync)
-        {
-            HistogramBitSynchronizer::Config cfg;
-            cfg.bit_period_ms = d_symbols_per_bit * d_correlation_length_ms;
-            cfg.epoch_ms = d_correlation_length_ms;
-            cfg.min_events_for_lock = d_trk_parameters.bs_min_events_for_lock;
-            cfg.stable_best_required = d_trk_parameters.bs_stable_best_required;
-            cfg.dominance_ratio = d_trk_parameters.bs_dominance_ratio;
-            cfg.min_prompt_mag = d_trk_parameters.bs_min_prompt_mag;
-            cfg.use_phase_dot_detector = d_trk_parameters.bs_use_phase_dot_detector;
-            d_bit_sync = HistogramBitSynchronizer(cfg);
-            d_bit_sync.reset();
-        }
-    else
-        {
-            d_bit_sync.reset();
-        }
-
-    if (d_use_glonass_biphase_sync)
-        {
-            GlonassBiphaseSymbolSynchronizer::Config cfg;
-            cfg.symbol_period_ms = d_symbols_per_bit * d_correlation_length_ms;
-            cfg.epoch_ms = d_correlation_length_ms;
-            cfg.min_windows_for_lock = d_trk_parameters.bs_min_events_for_lock;
-            cfg.stable_best_required = d_trk_parameters.bs_stable_best_required;
-            cfg.min_prompt_mag = d_trk_parameters.bs_min_prompt_mag;
-            cfg.min_norm_score = d_trk_parameters.bs_dominance_ratio;
-            cfg.use_phase_dot_sign = d_trk_parameters.bs_use_phase_dot_detector;
-            d_glonass_bit_sync = GlonassBiphaseSymbolSynchronizer(cfg);
-            d_glonass_bit_sync.reset();
-        }
-    else
-        {
-            d_glonass_bit_sync.reset();
-        }
+    HistogramBitSynchronizer::Config cfg;
+    cfg.bit_period_ms = d_symbols_per_bit * d_correlation_length_ms;
+    cfg.epoch_ms = d_correlation_length_ms;
+    cfg.min_events_for_lock = d_trk_parameters.bs_min_events_for_lock;
+    cfg.stable_best_required = d_trk_parameters.bs_stable_best_required;
+    cfg.dominance_ratio = d_trk_parameters.bs_dominance_ratio;
+    cfg.min_prompt_mag = d_trk_parameters.bs_min_prompt_mag;
+    cfg.use_phase_dot_detector = d_trk_parameters.bs_use_phase_dot_detector;
+    cfg.synchronization_model = d_use_glonass_biphase_sync ? HistogramBitSynchronizer::SynchronizationModel::GlonassBiphaseSymbol : HistogramBitSynchronizer::SynchronizationModel::HistogramBitEdge;
+    cfg.min_windows_for_lock = d_trk_parameters.bs_min_events_for_lock;
+    cfg.min_norm_score = d_trk_parameters.bs_dominance_ratio;
+    cfg.use_phase_dot_sign = d_trk_parameters.bs_use_phase_dot_detector;
+    d_bit_sync = HistogramBitSynchronizer(cfg);
+    d_bit_sync.reset();
 }
 
 
@@ -2005,21 +1982,21 @@ int dll_pll_veml_tracking::general_work(int noutput_items __attribute__((unused)
                                             }
                                         else if (d_use_glonass_biphase_sync)
                                             {
-                                                const bool lock_event = d_glonass_bit_sync.update(d_P_accu, true);
+                                                const bool lock_event = d_bit_sync.update(d_P_accu, true);
                                                 if (lock_event)
                                                     {
                                                         d_wait_for_bit_edge = true;
-                                                        const std::int64_t k_now = d_glonass_bit_sync.get_epoch_count() - 1;
-                                                        int wait = d_glonass_bit_sync.symbol_phase() - static_cast<int>(k_now % d_glonass_bit_sync.bins());
+                                                        const std::int64_t k_now = d_bit_sync.get_epoch_count() - 1;
+                                                        int wait = d_bit_sync.edge_phase() - static_cast<int>(k_now % d_bit_sync.bins());
                                                         if (wait < 0)
                                                             {
-                                                                wait += d_glonass_bit_sync.bins();
+                                                                wait += d_bit_sync.bins();
                                                             }
                                                         d_bit_sync_target_epoch = k_now + wait;
                                                     }
                                                 if (d_wait_for_bit_edge)
                                                     {
-                                                        const std::int64_t k_now = d_glonass_bit_sync.get_epoch_count() - 1;
+                                                        const std::int64_t k_now = d_bit_sync.get_epoch_count() - 1;
                                                         if (k_now == d_bit_sync_target_epoch)
                                                             {
                                                                 next_state = true;

@@ -19,6 +19,7 @@
 
 #include "dll_pll_conf_fpga.h"
 #include "gnss_sdr_flags.h"
+#include <cmath>
 
 #if USE_GLOG_AND_GFLAGS
 #include <glog/logging.h>
@@ -63,7 +64,6 @@ void Dll_Pll_Conf_Fpga::SetFromConfiguration(const ConfigurationInterface *confi
     dump_filename = configuration->property(role + ".dump_filename", dump_filename);
     enable_fll_pull_in = configuration->property(role + ".enable_fll_pull_in", enable_fll_pull_in);
     enable_fll_steady_state = configuration->property(role + ".enable_fll_steady_state", enable_fll_steady_state);
-    pull_in_time_s = configuration->property(role + ".pull_in_time_s", pull_in_time_s);
     track_pilot = configuration->property(role + ".track_pilot", track_pilot);
     bit_synchronization_time_limit_s = pull_in_time_s + 60;
     dll_filter_order = configuration->property(role + ".dll_filter_order", dll_filter_order);
@@ -132,6 +132,11 @@ void Dll_Pll_Conf_Fpga::SetFromConfiguration(const ConfigurationInterface *confi
     extend_correlation_symbols = configuration->property(role + ".extend_correlation_symbols", extend_correlation_symbols);
     cn0_samples = configuration->property(role + ".cn0_samples", cn0_samples);
     carrier_aiding = configuration->property(role + ".carrier_aiding", carrier_aiding);
+
+    // Guard time ≈ (4–5)/Bn based on DLL settling time.
+    // Clamp Bn to avoid pathological guard durations.
+    const auto pull_in_time_s_aux = static_cast<uint32_t>(std::ceil(((dll_filter_order <= 2) ? 4.0F : 5.0F) / std::max(0.2F, std::min(dll_bw_hz, dll_bw_narrow_hz))));
+    pull_in_time_s = configuration->property(role + ".pull_in_time_s", pull_in_time_s_aux);
 
     // tracking lock tests smoother parameters
     cn0_smoother_samples = configuration->property(role + ".cn0_smoother_samples", cn0_smoother_samples);

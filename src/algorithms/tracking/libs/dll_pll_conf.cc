@@ -18,6 +18,7 @@
 #include "dll_pll_conf.h"
 #include "gnss_sdr_flags.h"
 #include "item_type_helpers.h"
+#include <cmath>
 
 #if USE_GLOG_AND_GFLAGS
 #include <glog/logging.h>
@@ -122,7 +123,12 @@ void Dll_Pll_Conf::SetFromConfiguration(const ConfigurationInterface *configurat
     enable_fll_pull_in = configuration->property(role + ".enable_fll_pull_in", enable_fll_pull_in);
     enable_fll_steady_state = configuration->property(role + ".enable_fll_steady_state", enable_fll_steady_state);
     fll_bw_hz = configuration->property(role + ".fll_bw_hz", fll_bw_hz);
-    pull_in_time_s = configuration->property(role + ".pull_in_time_s", pull_in_time_s);
+
+    // Guard time ≈ (4–5)/Bn based on DLL settling time.
+    // Clamp Bn to avoid pathological guard durations.
+    const auto pull_in_time_s_aux = static_cast<uint32_t>(std::ceil(((dll_filter_order <= 2) ? 4.0F : 5.0F) / std::max(0.2F, std::min(dll_bw_hz, dll_bw_narrow_hz))));
+    pull_in_time_s = configuration->property(role + ".pull_in_time_s", pull_in_time_s_aux);
+
     bit_synchronization_time_limit_s = configuration->property(role + ".bit_synchronization_time_limit_s", bit_synchronization_time_limit_s);
     early_late_space_chips = configuration->property(role + ".early_late_space_chips", early_late_space_chips);
     early_late_space_narrow_chips = configuration->property(role + ".early_late_space_narrow_chips", early_late_space_narrow_chips);

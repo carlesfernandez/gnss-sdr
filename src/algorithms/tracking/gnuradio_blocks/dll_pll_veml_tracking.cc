@@ -666,6 +666,7 @@ dll_pll_veml_tracking::dll_pll_veml_tracking(const Dll_Pll_Conf &conf_)
     d_timetag_waiting = false;
     set_tag_propagation_policy(TPP_DONT);  // no tag propagation, the time tag will be adjusted and regenerated in work()
     d_last_tow_received = std::make_shared<TOW_to_trk>();
+    LOG(INFO) << "Tracking pull-in time set to " << d_trk_parameters.pull_in_time_s << " seconds for channel " << this->d_channel;
 }
 
 

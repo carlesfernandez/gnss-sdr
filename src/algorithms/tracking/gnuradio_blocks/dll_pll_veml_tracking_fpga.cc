@@ -443,6 +443,7 @@ dll_pll_veml_tracking_fpga::dll_pll_veml_tracking_fpga(const Dll_Pll_Conf_Fpga &
     int32_t *data_codes = d_trk_parameters.data_codes;
     d_multicorrelator_fpga = std::make_shared<Fpga_Multicorrelator_8sc>(d_n_correlator_taps, ca_codes, data_codes, d_code_length_chips, d_trk_parameters.track_pilot, d_code_samples_per_chip);
     d_multicorrelator_fpga->set_output_vectors(d_correlator_outs.data(), d_Prompt_Data.data());
+    LOG(INFO) << "Tracking pull-in time set to " << d_trk_parameters.pull_in_time_s << " seconds for channel " << this->d_channel;
 
     if (d_dump)
         {

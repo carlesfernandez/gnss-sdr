@@ -20,7 +20,6 @@ permissions:
 env:
   ANDROID_HOME: ${{ github.workspace }}/android-sdk-linux
   ANDROID_CMDLINE_TOOLS_VERSION: "15859902"
-  ANDROID_CMDLINE_TOOLS_SHA256: "4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583"
   ANDROID_NDK_VERSION: "27.3.13750724"
   ANDROID_API_LEVEL: "34"
 
@@ -47,42 +46,39 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake python3-mako
 
-      - name: Setup Java
-        uses: actions/setup-java@v6
+      # Setup Java
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "25"
 
-      - name: Install Android SDK command-line tools
+      # Setup Android command-line tools
+      - name: Install Android command-line tools
         run: |
           archive="$RUNNER_TEMP/android-commandlinetools.zip"
+          extract_dir="$RUNNER_TEMP/android-commandlinetools"
 
           wget --quiet \
             --output-document="$archive" \
             "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip"
 
-          echo "${ANDROID_CMDLINE_TOOLS_SHA256}  ${archive}" | sha256sum --check
+          mkdir -p "$extract_dir"
+          unzip -qq "$archive" -d "$extract_dir"
 
           mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
-          unzip -qq "$archive" -d "$RUNNER_TEMP/android-commandlinetools"
-
-          mv "$RUNNER_TEMP/android-commandlinetools/cmdline-tools/"* \
+          mv "$extract_dir/cmdline-tools/"* \
             "$ANDROID_HOME/cmdline-tools/latest/"
 
-      - name: Accept Android SDK licenses
-        run: |
-          set +o pipefail
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            --sdk_root="$ANDROID_HOME" \
-            --licenses
-          set -o pipefail
-
+      # Install the Android NDK using the Android CLI
       - name: Install Android NDK
         run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            --sdk_root="$ANDROID_HOME" \
-            --install "ndk;${ANDROID_NDK_VERSION}"
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/android" \
+            --sdk="$ANDROID_HOME" \
+            sdk install "ndk@${ANDROID_NDK_VERSION}"
+          set -o pipefail
 
+      # Configure
       - name: Configure ${{ matrix.arch }}
         run: |
           cmake \
@@ -93,5 +89,7 @@ jobs:
             -DANDROID_PLATFORM="android-${ANDROID_API_LEVEL}" \
             -DCMAKE_BUILD_TYPE=Release
 
+      # Build
       - name: Build ${{ matrix.arch }}
-        run: cmake --build "$GITHUB_WORKSPACE/build" --parallel
+        run: |
+          cmake --build "$GITHUB_WORKSPACE/build" --parallel

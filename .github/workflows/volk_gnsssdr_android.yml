@@ -44,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake python3-mako
+          sudo apt-get install -y cmake ninja-build python3-mako
 
       # Setup Java
       - uses: actions/setup-java@v6
@@ -69,14 +69,15 @@ jobs:
           mv "$extract_dir/cmdline-tools/"* \
             "$ANDROID_HOME/cmdline-tools/latest/"
 
-      # Install the Android NDK using the Android CLI
+      # Install the Android NDK using the new Android CLI
       - name: Install Android NDK
         run: |
-          set +o pipefail
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/android" \
             --sdk="$ANDROID_HOME" \
-            sdk install "ndk@${ANDROID_NDK_VERSION}"
-          set -o pipefail
+            sdk install "ndk/${ANDROID_NDK_VERSION}"
+
+          test -f \
+            "$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}/build/cmake/android.toolchain.cmake"
 
       # Configure
       - name: Configure ${{ matrix.arch }}
@@ -84,6 +85,7 @@ jobs:
           cmake \
             -S "$GITHUB_WORKSPACE/src/algorithms/libs/volk_gnsssdr_module/volk_gnsssdr" \
             -B "$GITHUB_WORKSPACE/build" \
+            -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI="${{ matrix.arch }}" \
             -DANDROID_PLATFORM="android-${ANDROID_API_LEVEL}" \

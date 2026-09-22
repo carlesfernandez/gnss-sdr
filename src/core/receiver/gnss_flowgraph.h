@@ -34,6 +34,7 @@
 #include "pvt_interface.h"
 #include "satellite_visibility.h"
 #include <gnuradio/blocks/null_sink.h>  // for null_sink
+#include <gnuradio/flowgraph.h>         // for gr::endpoint
 #include <gnuradio/runtime_types.h>     // for basic_block_sptr, top_block_sptr
 #include <pmt/pmt.h>                    // for pmt_t
 #include <array>                        // for array
@@ -233,6 +234,10 @@ private:
 
     int assign_channels();
     void check_signal_conditioners();
+    // Output port of the signal source block carrying the given RF channel
+    gr::endpoint source_rf_output(const std::shared_ptr<SignalSourceInterface>& src, unsigned int RF_channel) const;
+    // Applies GNSS-SDR.max_source_buffer_samples to the buffer of the given output port
+    void limit_output_buffer(const gr::endpoint& output) const;
 
     void set_signals_list();
     void keep_one_glonass_slot_per_frequency(std::set<unsigned int>& available_prns);
@@ -274,6 +279,10 @@ private:
 
     std::vector<std::shared_ptr<SignalSourceInterface>> sig_source_;
     std::vector<std::shared_ptr<GNSSBlockInterface>> sig_conditioner_;
+    // Output port feeding the channels for each Signal Conditioner ID. It is the
+    // signal source output itself when the conditioner is an identity (see
+    // GNSSBlockInterface::is_identity()), so nothing is scheduled in between.
+    std::vector<gr::endpoint> sig_conditioner_outputs_;
     std::vector<std::shared_ptr<ChannelInterface>> channels_;
     std::shared_ptr<GNSSBlockInterface> observables_;
     std::shared_ptr<GNSSBlockInterface> pvt_;

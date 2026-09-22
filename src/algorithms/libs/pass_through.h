@@ -26,6 +26,7 @@
 #include <gnuradio/blocks/copy.h>
 #include <gnuradio/runtime_types.h>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 /** \addtogroup Algorithms_Library
@@ -38,6 +39,12 @@ class ConfigurationInterface;
 
 /*!
  * \brief This class implements a block that connects input and output (does nothing)
+ *
+ * Unless spectrum inversion is requested for a complex item type, this block
+ * is an identity (see is_identity()) and the flow graph is expected to bypass
+ * it, connecting its producer directly to its consumers. A GNU Radio copy
+ * block is only instantiated when some caller still asks for an explicit
+ * endpoint through get_left_block() or get_right_block().
  */
 class Pass_Through : public GNSSBlockInterface
 {
@@ -70,18 +77,25 @@ public:
         return item_size_;
     }
 
+    //! True when no spectrum conjugation is applied, i.e., the block can be bypassed
+    bool is_identity() const override;
+
     void connect(gr::top_block_sptr top_block) override;
     void disconnect(gr::top_block_sptr top_block) override;
     gr::basic_block_sptr get_left_block() override;
     gr::basic_block_sptr get_right_block() override;
 
 private:
+    gr::basic_block_sptr conjugate_block() const;
+    gr::basic_block_sptr copy_block();
+
     gr::blocks::copy::sptr kludge_copy_;
     conjugate_cc_sptr conjugate_cc_;
     conjugate_sc_sptr conjugate_sc_;
     conjugate_ic_sptr conjugate_ic_;
     std::string item_type_;
     std::string role_;
+    uint64_t max_source_buffer_samples_;
     size_t item_size_;
     unsigned int in_streams_;
     unsigned int out_streams_;

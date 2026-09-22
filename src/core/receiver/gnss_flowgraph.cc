@@ -48,7 +48,9 @@
 #include <boost/lexical_cast.hpp>    // for boost::lexical_cast
 #include <boost/tokenizer.hpp>       // for boost::tokenizer
 #include <gnuradio/basic_block.h>    // for basic_block
+#include <gnuradio/block.h>          // for block, cast_to_block_sptr
 #include <gnuradio/filter/firdes.h>  // for gr::filter::firdes
+#include <gnuradio/hier_block2.h>    // for hier_block2, cast_to_hier_block2_sptr
 #include <gnuradio/io_signature.h>   // for io_signature
 #include <gnuradio/top_block.h>      // for top_block, make_top_block
 #include <pmt/pmt_sugar.h>           // for mp
@@ -987,8 +989,9 @@ int GNSSFlowgraph::connect_sample_counter()
                 }
 
             const int observable_interval_ms = configuration_->property("GNSS-SDR.observable_interval_ms", 20);
-            ch_out_sample_counter_ = gnss_sdr_make_sample_counter(fs, observable_interval_ms, sig_conditioner_.at(0)->get_right_block()->output_signature()->sizeof_stream_item(0));
-            top_block_->connect(sig_conditioner_.at(0)->get_right_block(), 0, ch_out_sample_counter_, 0);
+            const gr::endpoint& conditioner_output = sig_conditioner_outputs_.at(0);
+            ch_out_sample_counter_ = gnss_sdr_make_sample_counter(fs, observable_interval_ms, conditioner_output.block()->output_signature()->sizeof_stream_item(conditioner_output.port()));
+            top_block_->connect(conditioner_output.block(), conditioner_output.port(), ch_out_sample_counter_, 0);
             top_block_->connect(ch_out_sample_counter_, 0, observables_->get_left_block(), channels_count_);  // extra port for the sample counter pulse
         }
     catch (const std::exception& e)
@@ -1049,6 +1052,7 @@ int GNSSFlowgraph::connect_signal_sources_to_signal_conditioners()
             top_block_->disconnect_all();
             return 1;
         }
+    sig_conditioner_outputs_.assign(sig_conditioner_.size(), gr::endpoint());
     unsigned int signal_conditioner_ID = 0;
     for (int i = 0; i < sources_count_; i++)
         {
@@ -1067,6 +1071,7 @@ int GNSSFlowgraph::connect_signal_sources_to_signal_conditioners()
                                     std::cout << "connecting ch " << j << '\n';
                                     top_block_->connect(src->get_right_block(), j, sig_conditioner_.at(i)->get_left_block(), j);
                                 }
+                            sig_conditioner_outputs_.at(i) = gr::endpoint(sig_conditioner_.at(i)->get_right_block(), 0);
                         }
                     else
                         {
@@ -1075,44 +1080,35 @@ int GNSSFlowgraph::connect_signal_sources_to_signal_conditioners()
                             for (auto j = 0U; j < RF_Channels; ++j)
                                 {
                                     // Connect the multichannel signal source to multiple signal conditioners
-                                    // GNURADIO max_streams=-1 means infinite ports!
-                                    size_t output_size = src->get_right_block()->output_signature()->sizeof_stream_item(0);
-                                    size_t input_size = sig_conditioner_.at(signal_conditioner_ID)->get_left_block()->input_signature()->sizeof_stream_item(0);
+                                    const gr::endpoint rf_output = source_rf_output(src, j);
+                                    auto& conditioner = sig_conditioner_.at(signal_conditioner_ID);
+                                    const size_t output_size = rf_output.block()->output_signature()->sizeof_stream_item(rf_output.port());
+                                    const size_t input_size = conditioner->is_identity() ? conditioner->item_size() : conditioner->get_left_block()->input_signature()->sizeof_stream_item(0);
                                     // Check configuration inconsistencies
                                     if (output_size != input_size)
                                         {
                                             help_hint_ += " * The Signal Source implementation " + src->implementation() + " has an output with a ";
                                             help_hint_ += src->role() + ".item_size of " + std::to_string(output_size);
                                             help_hint_ += " bytes, but it is connected to the Signal Conditioner implementation ";
-                                            help_hint_ += sig_conditioner_.at(signal_conditioner_ID)->implementation() + " with input item size of " + std::to_string(input_size) + " bytes.\n";
+                                            help_hint_ += conditioner->implementation() + " with input item size of " + std::to_string(input_size) + " bytes.\n";
                                             help_hint_ += "   Output ports must be connected to input ports with the same item size.\n";
                                             top_block_->disconnect_all();
                                             return 1;
                                         }
 
-                                    if (src->get_right_block()->output_signature()->max_streams() > 1 || src->get_right_block()->output_signature()->max_streams() == -1)
+                                    if (conditioner->is_identity())
                                         {
-                                            if (sig_conditioner_.size() > signal_conditioner_ID)
-                                                {
-                                                    LOG(INFO) << "connecting sig_source_ " << i << " stream " << j << " to conditioner " << signal_conditioner_ID;
-                                                    top_block_->connect(src->get_right_block(), j, sig_conditioner_.at(signal_conditioner_ID)->get_left_block(), 0);
-                                                }
+                                            // Nothing to schedule: the channels consume the signal source output directly
+                                            LOG(INFO) << "Signal conditioner " << signal_conditioner_ID << " is an identity, bypassed: sig_source_ " << i << " stream " << j << " feeds the channels directly";
+                                            sig_conditioner_outputs_.at(signal_conditioner_ID) = rf_output;
                                         }
                                     else
                                         {
-                                            if (j == 0 || !src->get_right_block(j))
-                                                {
-                                                    // RF_channel 0 backward compatibility with single channel sources
-                                                    LOG(INFO) << "connecting sig_source_ " << i << " stream " << 0 << " to conditioner " << signal_conditioner_ID;
-                                                    top_block_->connect(src->get_right_block(), 0, sig_conditioner_.at(signal_conditioner_ID)->get_left_block(), 0);
-                                                }
-                                            else
-                                                {
-                                                    // Multiple channel sources using multiple output blocks of single channel (requires RF_channel selector in call)
-                                                    LOG(INFO) << "connecting sig_source_ " << i << " stream " << j << " to conditioner " << signal_conditioner_ID;
-                                                    top_block_->connect(src->get_right_block(j), 0, sig_conditioner_.at(signal_conditioner_ID)->get_left_block(), 0);
-                                                }
+                                            LOG(INFO) << "connecting sig_source_ " << i << " stream " << j << " to conditioner " << signal_conditioner_ID;
+                                            top_block_->connect(rf_output.block(), rf_output.port(), conditioner->get_left_block(), 0);
+                                            sig_conditioner_outputs_.at(signal_conditioner_ID) = gr::endpoint(conditioner->get_right_block(), 0);
                                         }
+                                    limit_output_buffer(sig_conditioner_outputs_.at(signal_conditioner_ID));
                                     signal_conditioner_ID++;
                                 }
                         }
@@ -1144,6 +1140,73 @@ int GNSSFlowgraph::connect_signal_sources_to_signal_conditioners()
 }
 
 
+gr::endpoint GNSSFlowgraph::source_rf_output(const std::shared_ptr<SignalSourceInterface>& src, unsigned int RF_channel) const
+{
+    const gr::basic_block_sptr block = src->get_right_block();
+    const int max_streams = block->output_signature()->max_streams();
+    if (max_streams > 1 || max_streams == -1)
+        {
+            // Multichannel source exposing every RF channel as an output port of the same block
+            // GNURADIO max_streams=-1 means infinite ports!
+            return gr::endpoint(block, static_cast<int>(RF_channel));
+        }
+    if (RF_channel > 0)
+        {
+            // Multichannel source exposing one single-output block per RF channel (requires RF_channel selector in call)
+            const gr::basic_block_sptr channel_block = src->get_right_block(static_cast<int>(RF_channel));
+            if (channel_block)
+                {
+                    return gr::endpoint(channel_block, 0);
+                }
+        }
+    // RF_channel 0 backward compatibility with single channel sources
+    return gr::endpoint(block, 0);
+}
+
+
+void GNSSFlowgraph::limit_output_buffer(const gr::endpoint& output) const
+{
+    const uint64_t max_source_buffer_samples = configuration_->property("GNSS-SDR.max_source_buffer_samples", uint64_t(0));
+    if (max_source_buffer_samples == 0)
+        {
+            return;
+        }
+    // GNU Radio allocates one buffer per output port, owned by the producing
+    // block and shared by all its consumers, so the limit is applied to the
+    // port that actually feeds the channels. For a hierarchical block, GNU
+    // Radio forwards the per-port limit to the inner block wired to that port
+    // when flattening (and to every inner block if all its ports share the
+    // same limit).
+    try
+        {
+            if (const gr::block_sptr block = gr::cast_to_block_sptr(output.block()))
+                {
+                    // Blocks declaring an unbounded number of outputs size their
+                    // limits lazily, one port at a time
+                    for (int port = 0; port <= output.port(); port++)
+                        {
+                            block->expand_minmax_buffer(port);
+                        }
+                    block->set_max_output_buffer(output.port(), static_cast<long>(max_source_buffer_samples));
+                }
+            else if (const gr::hier_block2_sptr hier_block = gr::cast_to_hier_block2_sptr(output.block()))
+                {
+                    hier_block->set_max_output_buffer(static_cast<size_t>(output.port()), static_cast<int>(max_source_buffer_samples));
+                }
+            else
+                {
+                    LOG(WARNING) << "GNSS-SDR.max_source_buffer_samples not applied: " << output.block()->alias() << " is not a GNU Radio block";
+                    return;
+                }
+            LOG(INFO) << "Set signal conditioner max output buffer (" << output.block()->alias() << ":" << output.port() << ") to " << max_source_buffer_samples;
+        }
+    catch (const std::exception& e)
+        {
+            LOG(WARNING) << "GNSS-SDR.max_source_buffer_samples not applied to " << output.block()->alias() << ":" << output.port() << ": " << e.what();
+        }
+}
+
+
 int GNSSFlowgraph::connect_signal_conditioners_to_channels()
 {
     for (int i = 0; i < channels_count_; i++)
@@ -1163,6 +1226,8 @@ int GNSSFlowgraph::connect_signal_conditioners_to_channels()
                 }
             try
                 {
+                    // Output port that feeds this channel (the signal source itself when the conditioner is bypassed)
+                    const gr::endpoint conditioner_output = sig_conditioner_outputs_.at(selected_signal_conditioner_ID);
                     // Enable automatic resampler for the acquisition, if required
                     if (use_acq_resampler == true)
                         {
@@ -1246,7 +1311,7 @@ int GNSSFlowgraph::connect_signal_conditioners_to_channels()
                                             ret = acq_resamplers_.insert(std::pair<std::string, gr::basic_block_sptr>(map_key, fir_filter_ccf_));
                                             if (ret.second == true)
                                                 {
-                                                    top_block_->connect(sig_conditioner_.at(selected_signal_conditioner_ID)->get_right_block(), 0,
+                                                    top_block_->connect(conditioner_output.block(), conditioner_output.port(),
                                                         acq_resamplers_.at(map_key), 0);
                                                     LOG(INFO) << "Created "
                                                               << channels_.at(i)->get_signal().get_signal_str()
@@ -1269,23 +1334,23 @@ int GNSSFlowgraph::connect_signal_conditioners_to_channels()
                                         {
                                             LOG(INFO) << "Disabled acquisition resampler because the input sampling frequency is too low";
                                             // resampler not required!
-                                            top_block_->connect(sig_conditioner_.at(selected_signal_conditioner_ID)->get_right_block(), 0,
+                                            top_block_->connect(conditioner_output.block(), conditioner_output.port(),
                                                 channels_.at(i)->get_left_block_acq(), 0);
                                         }
                                 }
                             else
                                 {
                                     LOG(INFO) << "Disabled acquisition resampler because the input sampling frequency is too low";
-                                    top_block_->connect(sig_conditioner_.at(selected_signal_conditioner_ID)->get_right_block(), 0,
+                                    top_block_->connect(conditioner_output.block(), conditioner_output.port(),
                                         channels_.at(i)->get_left_block_acq(), 0);
                                 }
                         }
                     else
                         {
-                            top_block_->connect(sig_conditioner_.at(selected_signal_conditioner_ID)->get_right_block(), 0,
+                            top_block_->connect(conditioner_output.block(), conditioner_output.port(),
                                 channels_.at(i)->get_left_block_acq(), 0);
                         }
-                    top_block_->connect(sig_conditioner_.at(selected_signal_conditioner_ID)->get_right_block(), 0,
+                    top_block_->connect(conditioner_output.block(), conditioner_output.port(),
                         channels_.at(i)->get_left_block_trk(), 0);
                 }
             catch (const std::exception& e)
@@ -1568,8 +1633,9 @@ void GNSSFlowgraph::check_signal_conditioners()
         {
             if (signal_conditioner_connected_.at(n) == false)
                 {
-                    null_sinks_.push_back(gr::blocks::null_sink::make(sizeof(gr_complex)));
-                    top_block_->connect(sig_conditioner_.at(n)->get_right_block(), 0,
+                    const gr::endpoint& conditioner_output = sig_conditioner_outputs_.at(n);
+                    null_sinks_.push_back(gr::blocks::null_sink::make(conditioner_output.block()->output_signature()->sizeof_stream_item(conditioner_output.port())));
+                    top_block_->connect(conditioner_output.block(), conditioner_output.port(),
                         null_sinks_.back(), 0);
                     LOG(INFO) << "Null sink connected to signal conditioner " << n << " due to lack of connection to any channel\n";
                 }

@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <vector>
 
 /** \addtogroup Signal_Conditioner Signal Conditioner
  * Signal Conditioner wrapper block
@@ -35,6 +36,12 @@
 /*!
  * \brief This class wraps blocks to change data_type_adapter, input_filter and resampler
  * to be applied to the input flow of sampled signal.
+ *
+ * Stages reporting is_identity() are not connected: the remaining stages are
+ * chained directly, and get_left_block() / get_right_block() resolve to the
+ * first and last stages that actually process samples. When every stage is an
+ * identity, the whole conditioner reports is_identity() and the flow graph is
+ * expected to bypass it.
  */
 class SignalConditioner : public GNSSBlockInterface
 {
@@ -53,6 +60,9 @@ public:
     gr::basic_block_sptr get_left_block() override;
     gr::basic_block_sptr get_right_block() override;
 
+    //! True when the data type adapter, the input filter and the resampler are all identities
+    bool is_identity() const override;
+
     inline std::string role() override { return role_; }
 
     inline std::string implementation() override { return "Signal_Conditioner"; }  //!< Returns "Signal_Conditioner"
@@ -64,6 +74,10 @@ public:
     inline std::shared_ptr<GNSSBlockInterface> resampler() { return res_; }
 
 private:
+    std::vector<std::shared_ptr<GNSSBlockInterface>> processing_stages() const;
+    static size_t input_item_size(const std::shared_ptr<GNSSBlockInterface>& stage);
+    static size_t output_item_size(const std::shared_ptr<GNSSBlockInterface>& stage);
+
     std::shared_ptr<GNSSBlockInterface> data_type_adapt_;
     std::shared_ptr<GNSSBlockInterface> in_filt_;
     std::shared_ptr<GNSSBlockInterface> res_;

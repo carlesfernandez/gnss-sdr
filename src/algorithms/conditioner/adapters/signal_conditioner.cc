@@ -16,6 +16,8 @@
  */
 
 #include "signal_conditioner.h"
+#include <gnuradio/io_signature.h>
+#include <initializer_list>
 #include <stdexcept>
 #include <utility>
 
@@ -66,10 +68,12 @@ void SignalConditioner::connect(gr::top_block_sptr top_block)
             throw std::invalid_argument("itemsize mismatch: Invalid input/output data type configuration for the InputFilter");
         }
 
-    const size_t data_type_adapter_output_size = data_type_adapt_->get_right_block()->output_signature()->sizeof_stream_item(0);
-    const size_t input_filter_input_size = in_filt_->get_left_block()->input_signature()->sizeof_stream_item(0);
-    const size_t input_filter_output_size = in_filt_->get_right_block()->output_signature()->sizeof_stream_item(0);
-    const size_t resampler_input_size = res_->get_left_block()->input_signature()->sizeof_stream_item(0);
+    // Item sizes are validated for every stage, including the identity stages
+    // that are bypassed below, so that configuration errors are still reported.
+    const size_t data_type_adapter_output_size = output_item_size(data_type_adapt_);
+    const size_t input_filter_input_size = input_item_size(in_filt_);
+    const size_t input_filter_output_size = output_item_size(in_filt_);
+    const size_t resampler_input_size = input_item_size(res_);
 
     if (data_type_adapter_output_size != input_filter_input_size)
         {
@@ -81,11 +85,17 @@ void SignalConditioner::connect(gr::top_block_sptr top_block)
             throw std::invalid_argument("itemsize mismatch: Invalid input/output data type configuration for the Input Filter/Resampler connection");
         }
 
-    top_block->connect(data_type_adapt_->get_right_block(), 0, in_filt_->get_left_block(), 0);
-    DLOG(INFO) << "data_type_adapter -> input_filter";
-
-    top_block->connect(in_filt_->get_right_block(), 0, res_->get_left_block(), 0);
-    DLOG(INFO) << "input_filter -> resampler";
+    // Chain the stages that actually process samples; identity stages are left out
+    const auto stages = processing_stages();
+    for (size_t i = 1; i < stages.size(); i++)
+        {
+            top_block->connect(stages[i - 1]->get_right_block(), 0, stages[i]->get_left_block(), 0);
+            DLOG(INFO) << stages[i - 1]->role() << " -> " << stages[i]->role();
+        }
+    if (stages.size() < 3)
+        {
+            LOG(INFO) << role_ << ": " << (3 - stages.size()) << " identity stage(s) bypassed";
+        }
     connected_ = true;
 }
 
@@ -98,10 +108,11 @@ void SignalConditioner::disconnect(gr::top_block_sptr top_block)
             return;
         }
 
-    top_block->disconnect(data_type_adapt_->get_right_block(), 0,
-        in_filt_->get_left_block(), 0);
-    top_block->disconnect(in_filt_->get_right_block(), 0,
-        res_->get_left_block(), 0);
+    const auto stages = processing_stages();
+    for (size_t i = 1; i < stages.size(); i++)
+        {
+            top_block->disconnect(stages[i - 1]->get_right_block(), 0, stages[i]->get_left_block(), 0);
+        }
 
     data_type_adapt_->disconnect(top_block);
     in_filt_->disconnect(top_block);
@@ -113,11 +124,64 @@ void SignalConditioner::disconnect(gr::top_block_sptr top_block)
 
 gr::basic_block_sptr SignalConditioner::get_left_block()
 {
-    return data_type_adapt_->get_left_block();
+    const auto stages = processing_stages();
+    if (stages.empty())
+        {
+            // Entirely identity: a single fallback endpoint serves both sides
+            return res_->get_left_block();
+        }
+    return stages.front()->get_left_block();
 }
 
 
 gr::basic_block_sptr SignalConditioner::get_right_block()
 {
-    return res_->get_right_block();
+    const auto stages = processing_stages();
+    if (stages.empty())
+        {
+            return res_->get_right_block();
+        }
+    return stages.back()->get_right_block();
+}
+
+
+bool SignalConditioner::is_identity() const
+{
+    return (data_type_adapt_ != nullptr) && data_type_adapt_->is_identity() &&
+           (in_filt_ != nullptr) && in_filt_->is_identity() &&
+           (res_ != nullptr) && res_->is_identity();
+}
+
+
+std::vector<std::shared_ptr<GNSSBlockInterface>> SignalConditioner::processing_stages() const
+{
+    std::vector<std::shared_ptr<GNSSBlockInterface>> stages;
+    for (const auto& stage : {data_type_adapt_, in_filt_, res_})
+        {
+            if ((stage != nullptr) && !stage->is_identity())
+                {
+                    stages.push_back(stage);
+                }
+        }
+    return stages;
+}
+
+
+size_t SignalConditioner::input_item_size(const std::shared_ptr<GNSSBlockInterface>& stage)
+{
+    if (stage->is_identity())
+        {
+            return stage->item_size();
+        }
+    return stage->get_left_block()->input_signature()->sizeof_stream_item(0);
+}
+
+
+size_t SignalConditioner::output_item_size(const std::shared_ptr<GNSSBlockInterface>& stage)
+{
+    if (stage->is_identity())
+        {
+            return stage->item_size();
+        }
+    return stage->get_right_block()->output_signature()->sizeof_stream_item(0);
 }

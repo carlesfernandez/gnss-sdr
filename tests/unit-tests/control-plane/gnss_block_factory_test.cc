@@ -76,6 +76,38 @@ TEST(GNSSBlockFactoryTest, InstantiateSignalConditioner)
     auto signal_conditioner = block_factory::GetSignalConditioner(configuration.get());
     EXPECT_STREQ("SignalConditioner", signal_conditioner->role().c_str());
     EXPECT_STREQ("Signal_Conditioner", signal_conditioner->implementation().c_str());
+    // Unset stages default to Pass_Through, so the whole conditioner is an identity
+    EXPECT_TRUE(signal_conditioner->is_identity());
+}
+
+
+TEST(GNSSBlockFactoryTest, InstantiateSignalConditionerWithProcessingStage)
+{
+    auto configuration = std::make_shared<InMemoryConfiguration>();
+    configuration->set_property("SignalConditioner.implementation", "Signal_Conditioner");
+    configuration->set_property("InputFilter.implementation", "Pass_Through");
+    configuration->set_property("InputFilter.item_type", "gr_complex");
+    configuration->set_property("InputFilter.inverted_spectrum", "true");
+    auto signal_conditioner = block_factory::GetSignalConditioner(configuration.get());
+    ASSERT_NE(nullptr, signal_conditioner);
+    EXPECT_FALSE(signal_conditioner->is_identity());
+}
+
+
+TEST(GNSSBlockFactoryTest, InstantiatePassThroughSignalConditioner)
+{
+    auto configuration = std::make_shared<InMemoryConfiguration>();
+    configuration->set_property("SignalConditioner.implementation", "Pass_Through");
+    auto signal_conditioner = block_factory::GetSignalConditioner(configuration.get());
+    ASSERT_NE(nullptr, signal_conditioner);
+    EXPECT_STREQ("SignalConditioner", signal_conditioner->role().c_str());
+    EXPECT_STREQ("Pass_Through", signal_conditioner->implementation().c_str());
+    EXPECT_TRUE(signal_conditioner->is_identity());
+
+    configuration->set_property("SignalConditioner.inverted_spectrum", "true");
+    signal_conditioner = block_factory::GetSignalConditioner(configuration.get());
+    ASSERT_NE(nullptr, signal_conditioner);
+    EXPECT_FALSE(signal_conditioner->is_identity());
 }
 
 

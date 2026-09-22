@@ -78,6 +78,20 @@ public:
     virtual gr::basic_block_sptr get_left_block() = 0;
     virtual gr::basic_block_sptr get_right_block() = 0;
 
+    /*!
+     * \brief Whether this block leaves the sample stream untouched.
+     *
+     * An identity block performs no processing on its single input stream,
+     * so the flow graph can connect its upstream producer directly to its
+     * consumers instead of scheduling the blocks returned by get_left_block()
+     * and get_right_block(). Those blocks remain valid endpoints for callers
+     * that do not perform this bypass.
+     */
+    virtual bool is_identity() const
+    {
+        return false;
+    }
+
     virtual gr::basic_block_sptr get_left_block(int RF_channel)
     {
         assert(RF_channel >= 0);

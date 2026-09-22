@@ -35,6 +35,7 @@ Pass_Through::Pass_Through(const ConfigurationInterface* configuration,
     unsigned int in_streams,
     unsigned int out_streams)
     : role_(role),
+      max_source_buffer_samples_(configuration->property("GNSS-SDR.max_source_buffer_samples", uint64_t(0))),
       in_streams_(in_streams),
       out_streams_(out_streams),
       inverted_spectrum(configuration->property(role + ".inverted_spectrum", false))
@@ -84,14 +85,12 @@ Pass_Through::Pass_Through(const ConfigurationInterface* configuration,
             item_size_ = sizeof(float);
         }
 
-    kludge_copy_ = gr::blocks::copy::make(item_size_);
-    const uint64_t max_source_buffer_samples = configuration->property("GNSS-SDR.max_source_buffer_samples", 0);
-    if (max_source_buffer_samples > 0)
+    if (inverted_spectrum && is_identity())
         {
-            kludge_copy_->set_max_output_buffer(max_source_buffer_samples);
-            LOG(INFO) << "Set signal conditioner max output buffer to " << max_source_buffer_samples;
+            LOG(WARNING) << "Setting inverted_spectrum to true with item_type "
+                         << item_type_ << " is not defined and has no effect.";
         }
-    DLOG(INFO) << "kludge_copy(" << kludge_copy_->unique_id() << ")";
+
     if (in_streams_ > 1)
         {
             LOG(ERROR) << "This implementation only supports one input stream but it is set to " << in_streams_;
@@ -100,6 +99,12 @@ Pass_Through::Pass_Through(const ConfigurationInterface* configuration,
         {
             LOG(ERROR) << "This implementation only supports one output stream but it is set to " << out_streams_;
         }
+}
+
+
+bool Pass_Through::is_identity() const
+{
+    return conjugate_block() == nullptr;
 }
 
 
@@ -123,47 +128,58 @@ void Pass_Through::disconnect(gr::top_block_sptr top_block)
 
 gr::basic_block_sptr Pass_Through::get_left_block()
 {
-    if (inverted_spectrum)
+    const gr::basic_block_sptr conjugate = conjugate_block();
+    if (conjugate)
         {
-            if (item_type_ == "gr_complex")
-                {
-                    return conjugate_cc_;
-                }
-            if (item_type_ == "cshort")
-                {
-                    return conjugate_sc_;
-                }
-            if (item_type_ == "cbyte")
-                {
-                    return conjugate_ic_;
-                }
-            LOG(WARNING) << "Setting inverted_spectrum to true with item_type "
-                         << item_type_ << " is not defined and has no effect.";
+            return conjugate;
         }
-
-    return kludge_copy_;
+    return copy_block();
 }
 
 
 gr::basic_block_sptr Pass_Through::get_right_block()
 {
-    if (inverted_spectrum)
+    const gr::basic_block_sptr conjugate = conjugate_block();
+    if (conjugate)
         {
-            if (item_type_ == "gr_complex")
-                {
-                    return conjugate_cc_;
-                }
-            if (item_type_ == "cshort")
-                {
-                    return conjugate_sc_;
-                }
-            if (item_type_ == "cbyte")
-                {
-                    return conjugate_ic_;
-                }
-            DLOG(WARNING) << "Setting inverted_spectrum to true with item_type "
-                          << item_type_ << " is not defined and has no effect.";
+            return conjugate;
         }
+    return copy_block();
+}
 
+
+gr::basic_block_sptr Pass_Through::conjugate_block() const
+{
+    if (conjugate_cc_)
+        {
+            return conjugate_cc_;
+        }
+    if (conjugate_sc_)
+        {
+            return conjugate_sc_;
+        }
+    if (conjugate_ic_)
+        {
+            return conjugate_ic_;
+        }
+    return nullptr;
+}
+
+
+gr::basic_block_sptr Pass_Through::copy_block()
+{
+    // Fallback endpoint for callers that connect an identity block instead
+    // of bypassing it. It is created on demand so that bypassed paths never
+    // instantiate (nor schedule) a copy block.
+    if (!kludge_copy_)
+        {
+            kludge_copy_ = gr::blocks::copy::make(item_size_);
+            if (max_source_buffer_samples_ > 0)
+                {
+                    kludge_copy_->set_max_output_buffer(max_source_buffer_samples_);
+                    LOG(INFO) << "Set signal conditioner max output buffer to " << max_source_buffer_samples_;
+                }
+            DLOG(INFO) << "kludge_copy(" << kludge_copy_->unique_id() << ")";
+        }
     return kludge_copy_;
 }

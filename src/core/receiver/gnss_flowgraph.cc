@@ -1148,7 +1148,7 @@ gr::endpoint GNSSFlowgraph::source_rf_output(const std::shared_ptr<SignalSourceI
         {
             // Multichannel source exposing every RF channel as an output port of the same block
             // GNURADIO max_streams=-1 means infinite ports!
-            return gr::endpoint(block, static_cast<int>(RF_channel));
+            return {block, static_cast<int>(RF_channel)};
         }
     if (RF_channel > 0)
         {
@@ -1156,11 +1156,11 @@ gr::endpoint GNSSFlowgraph::source_rf_output(const std::shared_ptr<SignalSourceI
             const gr::basic_block_sptr channel_block = src->get_right_block(static_cast<int>(RF_channel));
             if (channel_block)
                 {
-                    return gr::endpoint(channel_block, 0);
+                    return {channel_block, 0};
                 }
         }
     // RF_channel 0 backward compatibility with single channel sources
-    return gr::endpoint(block, 0);
+    return {block, 0};
 }
 
 

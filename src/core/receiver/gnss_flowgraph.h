@@ -39,6 +39,7 @@
 #include <pmt/pmt.h>                    // for pmt_t
 #include <array>                        // for array
 #include <chrono>                       // for steady_clock
+#include <cstdint>                      // for uint64_t
 #include <ctime>                        // for time_t
 #include <list>                         // for list
 #include <map>                          // for map
@@ -238,6 +239,7 @@ private:
     gr::endpoint source_rf_output(const std::shared_ptr<SignalSourceInterface>& src, unsigned int RF_channel) const;
     // Applies GNSS-SDR.max_source_buffer_samples to the buffer of the given output port
     void limit_output_buffer(const gr::endpoint& output) const;
+    static void limit_output_buffer(const gr::endpoint& output, uint64_t requested_samples);
 
     void set_signals_list();
     void keep_one_glonass_slot_per_frequency(std::set<unsigned int>& available_prns);

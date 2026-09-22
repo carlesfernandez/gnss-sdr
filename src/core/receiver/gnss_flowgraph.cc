@@ -63,6 +63,7 @@
 #include <iomanip>                   // for std::setprecision
 #include <iostream>                  // for operator<<
 #include <iterator>                  // for insert_iterator, inserter
+#include <limits>                    // for numeric_limits
 #include <map>                       // for std::map
 #include <memory>                    // for std::shared_ptr
 #include <set>                       // for set
@@ -1117,6 +1118,10 @@ int GNSSFlowgraph::connect_signal_sources_to_signal_conditioners()
                 {
                     LOG(ERROR) << "Can't connect SignalSource" << (i == 0 ? " " : (std::to_string(i) + " ")) << "to SignalConditioner" << (i == 0 ? " " : (std::to_string(i) + " ")) << ": " << e.what();
                     std::string reported_error(e.what());
+                    if (reported_error.find("GNSS-SDR.max_source_buffer_samples") != std::string::npos)
+                        {
+                            help_hint_ += " * " + reported_error + '\n';
+                        }
                     if (std::string::npos != reported_error.find(std::string("itemsize mismatch")))
                         {
                             std::string replace_me("copy");
@@ -1166,43 +1171,78 @@ gr::endpoint GNSSFlowgraph::source_rf_output(const std::shared_ptr<SignalSourceI
 
 void GNSSFlowgraph::limit_output_buffer(const gr::endpoint& output) const
 {
-    const uint64_t max_source_buffer_samples = configuration_->property("GNSS-SDR.max_source_buffer_samples", uint64_t(0));
-    if (max_source_buffer_samples == 0)
+    limit_output_buffer(output, configuration_->property("GNSS-SDR.max_source_buffer_samples", uint64_t(0)));
+}
+
+
+void GNSSFlowgraph::limit_output_buffer(const gr::endpoint& output, uint64_t requested_samples)
+{
+    if (requested_samples == 0)
         {
             return;
         }
-    // GNU Radio allocates one buffer per output port, owned by the producing
-    // block and shared by all its consumers, so the limit is applied to the
-    // port that actually feeds the channels. For a hierarchical block, GNU
-    // Radio forwards the per-port limit to the inner block wired to that port
-    // when flattening (and to every inner block if all its ports share the
-    // same limit).
-    try
+    // GNU Radio uses signed int item counts internally, even where setters
+    // accept long. Reject values that would narrow before touching the block.
+    if (requested_samples > static_cast<uint64_t>(std::numeric_limits<int>::max()))
         {
-            if (const gr::block_sptr block = gr::cast_to_block_sptr(output.block()))
+            throw std::invalid_argument("GNSS-SDR.max_source_buffer_samples exceeds the GNU Radio item-count limit of " +
+                                        std::to_string(std::numeric_limits<int>::max()) + ". Reduce it or set it to 0 for automatic sizing.");
+        }
+
+    const std::string producer = output.block()->alias() + ":" + std::to_string(output.port());
+    if (const gr::block_sptr block = gr::cast_to_block_sptr(output.block()))
+        {
+            // Unbounded-output blocks allocate these entries lazily.
+            for (int port = 0; port <= output.port(); port++)
                 {
-                    // Blocks declaring an unbounded number of outputs size their
-                    // limits lazily, one port at a time
-                    for (int port = 0; port <= output.port(); port++)
-                        {
-                            block->expand_minmax_buffer(port);
-                        }
-                    block->set_max_output_buffer(output.port(), static_cast<long>(max_source_buffer_samples));
+                    block->expand_minmax_buffer(port);
                 }
-            else if (const gr::hier_block2_sptr hier_block = gr::cast_to_hier_block2_sptr(output.block()))
+
+            // The TPB scheduler offers at most half the output buffer, rounded
+            // down to an output multiple, to each work call. A copy block's
+            // former limit may therefore be too small for its actual producer.
+            const auto multiple = static_cast<uint64_t>(std::max(1, block->output_multiple()));
+            const auto min_items = static_cast<uint64_t>(std::max(1, block->min_noutput_items()));
+            const uint64_t scheduling_minimum = 2 * ((min_items + multiple - 1) / multiple) * multiple;
+            const long declared_minimum = block->min_output_buffer(output.port());
+            const uint64_t required_samples = std::max(scheduling_minimum, static_cast<uint64_t>(std::max(0L, declared_minimum)));
+            if (requested_samples < required_samples)
                 {
-                    hier_block->set_max_output_buffer(static_cast<size_t>(output.port()), static_cast<int>(max_source_buffer_samples));
+                    throw std::invalid_argument("GNSS-SDR.max_source_buffer_samples=" + std::to_string(requested_samples) +
+                                                " is too small for producer " + producer + ", which requires at least " +
+                                                std::to_string(required_samples) + " samples. Increase it or set it to 0 for automatic sizing.");
                 }
-            else
+            if (declared_minimum > 0)
                 {
-                    LOG(WARNING) << "GNSS-SDR.max_source_buffer_samples not applied: " << output.block()->alias() << " is not a GNU Radio block";
+                    // GNU Radio's allocator handles max_output_buffer before
+                    // min_output_buffer in an if/else-if. Even a compatible max
+                    // would suppress the producer's explicit minimum request.
+                    LOG(WARNING) << "GNSS-SDR.max_source_buffer_samples not applied to " << producer
+                                 << ": preserving its minimum output buffer request of " << declared_minimum << " samples";
                     return;
                 }
-            LOG(INFO) << "Set signal conditioner max output buffer (" << output.block()->alias() << ":" << output.port() << ") to " << max_source_buffer_samples;
+
+            block->set_max_output_buffer(output.port(), static_cast<long>(requested_samples));
+            LOG(INFO) << "Set signal conditioner max output buffer (" << producer << ") to " << requested_samples;
         }
-    catch (const std::exception& e)
+    else if (const gr::hier_block2_sptr hier_block = gr::cast_to_hier_block2_sptr(output.block()))
         {
-            LOG(WARNING) << "GNSS-SDR.max_source_buffer_samples not applied to " << output.block()->alias() << ":" << output.port() << ": " << e.what();
+            const int declared_minimum = hier_block->min_output_buffer(static_cast<size_t>(output.port()));
+            if (declared_minimum > 0 && requested_samples < static_cast<uint64_t>(declared_minimum))
+                {
+                    throw std::invalid_argument("GNSS-SDR.max_source_buffer_samples=" + std::to_string(requested_samples) +
+                                                " is below the minimum output buffer request of " + std::to_string(declared_minimum) +
+                                                " samples for " + producer + ". Increase it or set it to 0 for automatic sizing.");
+                }
+            // The public hierarchy interface does not expose the internal
+            // output producer's scheduling constraints. Forwarding a limit can
+            // also affect all internal blocks when every output has that limit.
+            LOG(WARNING) << "GNSS-SDR.max_source_buffer_samples not applied to " << producer
+                         << ": cannot validate the internal producers of a hierarchical block; preserving its buffer settings";
+        }
+    else
+        {
+            LOG(WARNING) << "GNSS-SDR.max_source_buffer_samples not applied: " << producer << " is not a GNU Radio block";
         }
 }
 

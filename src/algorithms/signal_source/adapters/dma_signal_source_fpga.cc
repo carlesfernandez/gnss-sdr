@@ -19,6 +19,7 @@
 #include "dma_signal_source_fpga.h"
 #include "command_event.h"
 #include "configuration_interface.h"
+#include "fpga_freq_band_config.h"
 #include "gnss_sdr_flags.h"
 #include "gnss_sdr_string_literals.h"
 #include <algorithm>  // for std::min
@@ -53,8 +54,8 @@ DMASignalSourceFPGA::DMASignalSourceFPGA(const ConfigurationInterface *configura
       out_stream_(out_stream),
       item_size_(sizeof(int8_t)),
       enable_DMA_(false),
-      rx1_enable_(configuration->property(role + ".rx1_enable", true)),
-      rx2_enable_(configuration->property(role + ".rx2_enable", true)),
+      rx1_enable_(configuration->property(role + ".rx1_enable", fpga_freq_band_1_in_use(configuration))),
+      rx2_enable_(configuration->property(role + ".rx2_enable", fpga_freq_band_2_in_use(configuration))),
       enable_dynamic_bit_selection_(configuration->property(role + ".enable_dynamic_bit_selection", true)),
       repeat_(configuration->property(role + ".repeat", false))
 {
@@ -89,21 +90,28 @@ DMASignalSourceFPGA::DMASignalSourceFPGA(const ConfigurationInterface *configura
         }
 
     // configuration file check
+    // If not explicitly set, rx1_enable and rx2_enable default to whether there
+    // are channels configured in frequency band 1 (L1/E1) and frequency band 2
+    // (L2/L5/E5a/E5b/E6), respectively.
     const bool only_filename0_provided = !filename0_.empty() && filename1_.empty();
     const bool both_filenames_provided = !filename0_.empty() && !filename1_.empty();
-    const bool one_freq_band_enabled = rx1_enable_ ^ rx2_enable_;
+    const bool one_freq_band_enabled = rx1_enable_ != rx2_enable_;
     const bool both_freq_bands_enabled = rx1_enable_ && rx2_enable_;
 
     if (!((only_filename0_provided && one_freq_band_enabled) ||
             (both_filenames_provided && both_freq_bands_enabled)))
         {
-            LOG(FATAL) << "Configuration error: invalid combination of input files and enabled frequency bands";
+            LOG(FATAL) << "Configuration error: invalid combination of input files and enabled frequency bands "
+                       << "(rx1_enable=" << (rx1_enable_ ? "true" : "false") << ", rx2_enable=" << (rx2_enable_ ? "true" : "false")
+                       << ", filename0=\"" << filename0_ << "\", filename1=\"" << filename1_ << "\"). "
+                       << "A single input file requires exactly one of " << role << ".rx1_enable and " << role << ".rx2_enable to be true. "
+                       << "Two input files (" << role << ".filename0 and " << role << ".filename1) require both to be true.";
         }
 
     // if only one input file is specified in the configuration file then:
-    // if there is at least one channel assigned to frequency band 1 then the DMA transfers the samples to the L1 frequency band channels
-    // otherwise the DMA transfers the samples to the L2/L5 frequency band channels
-    // if more than one input file are specified then the DMA transfer the samples to both the L1 and the L2/L5 frequency channels.
+    // if rx1_enable is true then the DMA transfers the samples to the L1/E1 frequency band channels
+    // otherwise (rx2_enable is true) the DMA transfers the samples to the L2/L5/E5a/E5b/E6 frequency band channels
+    // if two input files are specified then the DMA transfers the samples to both frequency bands.
     if (filename1_.empty())
         {
             if (rx1_enable_)

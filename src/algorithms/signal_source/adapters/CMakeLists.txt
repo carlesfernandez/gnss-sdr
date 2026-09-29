@@ -67,6 +67,10 @@ if(ENABLE_DMA_PROXY)
     list(APPEND OPT_DRIVER_HEADERS dma_signal_source_fpga.h)
 endif()
 
+if(ENABLE_AD9361 OR ENABLE_DMA_PROXY)
+    list(APPEND OPT_DRIVER_HEADERS fpga_freq_band_config.h)
+endif()
+
 if(ENABLE_FLEXIBAND AND TELEORBIT_FOUND)
     list(APPEND OPT_DRIVER_SOURCES flexiband_signal_source.cc)
     list(APPEND OPT_DRIVER_HEADERS flexiband_signal_source.h)

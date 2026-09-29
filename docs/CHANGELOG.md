@@ -535,6 +535,17 @@ All notable changes to GNSS-SDR will be documented in this file.
   preserving previous logs across the receiver, calibration tool, and test
   runners. On POSIX systems, an atomically updated relative symlink points to
   the latest logfile.
+- The `ADRV9361_Z7035_Signal_Source_FPGA`, `FMCOMMS5_Signal_Source_FPGA` and
+  `DMA_Signal_Source_FPGA` implementations now select the FPGA frequency bands
+  from the `SignalSource.rx1_enable` (L1/E1 band) and `SignalSource.rx2_enable`
+  (L2/L5/E5a/E5b/E6 band) parameters, which the AD9361-based sources also use
+  to configure the RF front-end. If not set, each one defaults to whether there are channels
+  configured in the corresponding band. This fixes the band detection for GPS
+  L2C, Galileo E5b, and Galileo E6 channels, which were previously not taken
+  into account. `DMA_Signal_Source_FPGA` now stops with an explanatory error if
+  the number of input files does not match the number of enabled bands, and the
+  receiver no longer crashes if the FPGA does not provide dynamic bit selection
+  for an enabled band.
 
 See the definitions of concepts and metrics at
 https://gnss-sdr.org/design-forces/

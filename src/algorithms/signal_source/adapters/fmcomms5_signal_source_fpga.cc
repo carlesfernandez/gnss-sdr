@@ -27,6 +27,7 @@
 #include "GPS_L5.h"
 #include "ad9361_manager.h"
 #include "configuration_interface.h"
+#include "fpga_freq_band_config.h"
 #include "gnss_sdr_flags.h"
 #include "gnss_sdr_string_literals.h"
 #include <algorithm>  // for std::max
@@ -67,8 +68,8 @@ Fmcomms5SignalSourceFPGA::Fmcomms5SignalSourceFPGA(const ConfigurationInterface 
       quadrature_(configuration->property(role + ".quadrature", true)),
       rf_dc_(configuration->property(role + ".rf_dc", true)),
       bb_dc_(configuration->property(role + ".bb_dc", true)),
-      rx1_enable_(configuration->property(role + ".rx1_enable", true)),
-      rx2_enable_(configuration->property(role + ".rx2_enable", true)),
+      rx1_enable_(configuration->property(role + ".rx1_enable", fpga_freq_band_1_in_use(configuration))),
+      rx2_enable_(configuration->property(role + ".rx2_enable", fpga_freq_band_2_in_use(configuration))),
       enable_dynamic_bit_selection_(configuration->property(role + ".enable_dynamic_bit_selection", true)),
       enable_ovf_check_buffer_monitor_active_(true),
       dump_(configuration->property(role + ".dump", false)),
@@ -78,7 +79,7 @@ Fmcomms5SignalSourceFPGA::Fmcomms5SignalSourceFPGA(const ConfigurationInterface 
       rf_shutdown_(configuration->property(role + ".rf_shutdown", absl::GetFlag(FLAGS_rf_shutdown)))
 #endif
 {
-    const uint32_t num_freq_bands = ((rx1_enable_ == true) && (rx2_enable_ == true)) ? 2 : 1;
+    const uint32_t num_freq_bands = (rx1_enable_ && rx2_enable_) ? 2 : 1;
 
     switch_fpga = std::make_shared<Fpga_Switch>();
     switch_fpga->set_switch_position(switch_to_real_time_mode);

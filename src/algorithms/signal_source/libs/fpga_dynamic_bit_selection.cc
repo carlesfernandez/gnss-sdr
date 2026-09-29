@@ -44,19 +44,35 @@ Fpga_dynamic_bit_selection::Fpga_dynamic_bit_selection(bool enable_rx1_band, boo
 {
     if (d_enable_rx1_band)
         {
-            open_device(&d_map_base_freq_band_1, d_dev_descr_freq_band_1, 0);
-
-            // init bit selection corresponding to frequency band 1
-            d_shift_out_bits_freq_band_1 = shift_out_bits_default;
-            d_map_base_freq_band_1[0] = d_shift_out_bits_freq_band_1;
+            if (open_device(&d_map_base_freq_band_1, d_dev_descr_freq_band_1, 0))
+                {
+                    // init bit selection corresponding to frequency band 1
+                    d_shift_out_bits_freq_band_1 = shift_out_bits_default;
+                    d_map_base_freq_band_1[0] = d_shift_out_bits_freq_band_1;
+                }
+            else
+                {
+                    // the FPGA does not provide dynamic bit selection for this band: disable it
+                    d_enable_rx1_band = false;
+                    LOG(WARNING) << "Dynamic bit selection disabled in frequency band 1";
+                    std::cout << "Dynamic bit selection disabled in frequency band 1\n";
+                }
         }
     if (d_enable_rx2_band)
         {
-            open_device(&d_map_base_freq_band_2, d_dev_descr_freq_band_2, 1);
-
-            // init bit selection corresponding to frequency band 2
-            d_shift_out_bits_freq_band_2 = shift_out_bits_default;
-            d_map_base_freq_band_2[0] = d_shift_out_bits_freq_band_2;
+            if (open_device(&d_map_base_freq_band_2, d_dev_descr_freq_band_2, 1))
+                {
+                    // init bit selection corresponding to frequency band 2
+                    d_shift_out_bits_freq_band_2 = shift_out_bits_default;
+                    d_map_base_freq_band_2[0] = d_shift_out_bits_freq_band_2;
+                }
+            else
+                {
+                    // the FPGA does not provide dynamic bit selection for this band: disable it
+                    d_enable_rx2_band = false;
+                    LOG(WARNING) << "Dynamic bit selection disabled in frequency band 2";
+                    std::cout << "Dynamic bit selection disabled in frequency band 2\n";
+                }
         }
     DLOG(INFO) << "Dynamic bit selection FPGA class created";
 }
@@ -89,30 +105,37 @@ void Fpga_dynamic_bit_selection::bit_selection()
 }
 
 
-void Fpga_dynamic_bit_selection::open_device(volatile unsigned **d_map_base, int &d_dev_descr, int freq_band)
+bool Fpga_dynamic_bit_selection::open_device(volatile unsigned **d_map_base, int &d_dev_descr, int freq_band)
 {
-    // find the uio device file corresponding to the dynamic bit selector 0 module.
+    *d_map_base = nullptr;
+    d_dev_descr = -1;
+    const int freq_band_number = freq_band + 1;
+
+    // find the uio device file corresponding to the dynamic bit selector module of this frequency band.
     std::string device_name;
     if (find_uio_dev_file_name(device_name, dyn_bit_sel_device_name, freq_band) < 0)
         {
-            std::cerr << "Cannot find the FPGA uio device file corresponding to device name " << dyn_bit_sel_device_name << '\n';
-            std::cout << "Cannot find the FPGA uio device file corresponding to device name " << dyn_bit_sel_device_name << '\n';
-            return;
+            std::cerr << "Cannot find the FPGA uio device file corresponding to device name " << dyn_bit_sel_device_name << " in frequency band " << freq_band_number << '\n';
+            LOG(WARNING) << "Cannot find the FPGA uio device file corresponding to device name " << dyn_bit_sel_device_name << " in frequency band " << freq_band_number;
+            return false;
         }
-    // dynamic bits selection corresponding to frequency band 1
     if ((d_dev_descr = open(device_name.c_str(), O_RDWR | O_SYNC)) == -1)
         {
-            LOG(WARNING) << "Cannot open deviceio" << device_name;
-            std::cout << "Cannot open deviceio" << device_name << std::endl;
+            LOG(WARNING) << "Cannot open deviceio " << device_name;
+            std::cout << "Cannot open deviceio " << device_name << std::endl;
+            return false;
         }
-    *d_map_base = reinterpret_cast<volatile unsigned *>(mmap(nullptr, FPGA_PAGE_SIZE,
-        PROT_READ | PROT_WRITE, MAP_SHARED, d_dev_descr, 0));
-
-    if (*d_map_base == reinterpret_cast<void *>(-1))
+    void *map_base = mmap(nullptr, FPGA_PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, d_dev_descr, 0);
+    if (map_base == MAP_FAILED)
         {
-            LOG(WARNING) << "Cannot map the FPGA dynamic bit selection module in frequency band 1 into tracking memory";
-            std::cout << "Could not map dynamic bit selection memory corresponding to frequency band 1.\n";
+            LOG(WARNING) << "Cannot map the FPGA dynamic bit selection module in frequency band " << freq_band_number << " into tracking memory";
+            std::cout << "Could not map dynamic bit selection memory corresponding to frequency band " << freq_band_number << ".\n";
+            close(d_dev_descr);
+            d_dev_descr = -1;
+            return false;
         }
+    *d_map_base = reinterpret_cast<volatile unsigned *>(map_base);
+    return true;
 }
 
 

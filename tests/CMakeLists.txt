@@ -1145,6 +1145,7 @@ if(NOT ENABLE_PACKAGING AND NOT ENABLE_FPGA)
             data_type_adapters
             input_filter_adapters
             channel_adapters
+            conditioner_adapters
             core_receiver
             algorithms_libs
     )

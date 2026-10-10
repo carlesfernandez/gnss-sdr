@@ -1005,8 +1005,6 @@ std::unique_ptr<GNSSBlockInterface> GetSignalConditioner(
     const std::string input_filter = configuration->property(role_inputfilter + impl_prop, ""s);
     const std::string resampler = configuration->property(role_resampler + impl_prop, ""s);
 
-    const bool remove_identity = configuration->property(role_conditioner + ".remove_pass_through",
-        configuration->property(role_conditioner + ".batch_size_ms", 0.0) > 0.0);
     if (signal_conditioner == "Bypass")
         {
             for (const auto& role : {role_conditioner, role_datatypeadapter, role_inputfilter, role_resampler})
@@ -1052,12 +1050,7 @@ std::unique_ptr<GNSSBlockInterface> GetSignalConditioner(
                 }
             LOG(INFO) << "Getting " << role_conditioner << " with Pass_Through implementation";
 
-            auto pass = std::make_unique<Pass_Through>(configuration, role_conditioner, 1, 1);
-            if (remove_identity && pass->is_identity())
-                {
-                    return std::make_unique<SignalConditioner>(role_conditioner, pass->item_size());
-                }
-            return pass;
+            return std::make_unique<Pass_Through>(configuration, role_conditioner, 1, 1);
         }
 
     LOG(INFO) << "Getting " << role_conditioner << " with " << role_datatypeadapter << " implementation: "
@@ -1081,12 +1074,11 @@ std::unique_ptr<GNSSBlockInterface> GetSignalConditioner(
             return nullptr;
         }
 
-    // single-antenna version
     return std::make_unique<SignalConditioner>(
         GetBlock(configuration, role_datatypeadapter, 1, 1),
         GetBlock(configuration, role_inputfilter, 1, 1),
         GetBlock(configuration, role_resampler, 1, 1),
-        role_conditioner, remove_identity);
+        role_conditioner);
 }
 
 

@@ -450,3 +450,31 @@ TEST_F(ConditionedFlowgraphTest, AutomaticPlanningSupportsMultipleRfStreams)
     graph.disconnect();
     EXPECT_FALSE(graph.running());
 }
+
+
+TEST_F(ConditionedFlowgraphTest, IdentityRemovalIsPlannedAfterConstructionAndOnReconnect)
+{
+    for (const auto* implementation : {"Pass_Through", "Signal_Conditioner"})
+        {
+            auto config = configuration();
+            config->supersede_property("SignalConditioner.implementation", implementation);
+            config->supersede_property("SignalConditioner.batch_size_ms", "10");
+            config->supersede_property("SignalConditioner.remove_pass_through", "false");
+            GNSSFlowgraph graph(config, std::make_shared<Concurrent_Queue<pmt::pmt_t>>());
+            for (bool remove : {true, false, true})
+                {
+                    config->supersede_property("SignalConditioner.remove_pass_through", remove ? "true" : "false");
+                    graph.connect();
+                    ASSERT_TRUE(graph.connected());
+                    ASSERT_EQ(1U, graph.conditioner_scheduling_plans().size());
+                    const auto& plan = graph.conditioner_scheduling_plans()[0];
+                    EXPECT_EQ(remove, plan.remove_identity);
+                    EXPECT_EQ(40000U, plan.batch_items);
+                    graph.start();
+                    ASSERT_TRUE(graph.running());
+                    graph.disconnect();
+                    EXPECT_FALSE(graph.connected());
+                    EXPECT_FALSE(graph.running());
+                }
+        }
+}

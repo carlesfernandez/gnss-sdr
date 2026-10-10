@@ -16,10 +16,9 @@
 
 #include "gnss_block_factory.h"
 #include "in_memory_configuration.h"
+#include "signal_conditioner.h"
 #include "stream_batcher.h"
 #include "stream_batcher_deadline.h"
-#include <gnuradio/blocks/vector_sink.h>
-#include <gnuradio/blocks/vector_source.h>
 #include <gnuradio/io_signature.h>
 #include <gnuradio/sync_block.h>
 #include <gnuradio/top_block.h>
@@ -31,6 +30,18 @@
 #include <limits>
 #include <numeric>
 #include <thread>
+
+#ifdef GR_GREATER_38
+#include <gnuradio/blocks/vector_sink.h>
+#include <gnuradio/blocks/vector_source.h>
+#else
+#include <gnuradio/blocks/vector_sink_b.h>
+#include <gnuradio/blocks/vector_sink_c.h>
+#include <gnuradio/blocks/vector_sink_i.h>
+#include <gnuradio/blocks/vector_source_b.h>
+#include <gnuradio/blocks/vector_source_c.h>
+#include <gnuradio/blocks/vector_source_s.h>
+#endif
 
 namespace
 {
@@ -349,7 +360,6 @@ TEST_F(StreamBatcherTest, AllConditionerStageCombinationsPreserveInversion)
         {
             InMemoryConfiguration config;
             config.set_property("SignalConditioner.implementation", "Signal_Conditioner");
-            config.set_property("SignalConditioner.remove_pass_through", "true");
             int inversions = 0;
             int bit = 0;
             for (const auto& role : {"DataTypeAdapter", "InputFilter", "Resampler"})
@@ -360,6 +370,9 @@ TEST_F(StreamBatcherTest, AllConditionerStageCombinationsPreserveInversion)
                     config.set_property(std::string(role) + ".inverted_spectrum", invert ? "true" : "false");
                 }
             auto conditioner = block_factory::GetSignalConditioner(&config);
+            auto* adapter = dynamic_cast<SignalConditioner*>(conditioner.get());
+            ASSERT_NE(nullptr, adapter);
+            adapter->set_remove_identity(true);
             auto top = gr::make_top_block("conditioner_chain_test");
             std::vector<gr_complex> samples(1025, gr_complex(0.25F, -0.75F));
             auto source = gr::blocks::vector_source_c::make(samples, false);
@@ -417,10 +430,12 @@ TEST_F(StreamBatcherTest, ConversionRemainsWhenCopiesAreRemoved)
 {
     InMemoryConfiguration config;
     config.set_property("SignalConditioner.implementation", "Signal_Conditioner");
-    config.set_property("SignalConditioner.remove_pass_through", "true");
     config.set_property("DataTypeAdapter.implementation", "Ishort_To_Complex");
     config.set_property("DataTypeAdapter.inverted_spectrum", "true");
     auto conditioner = block_factory::GetSignalConditioner(&config);
+    auto* adapter = dynamic_cast<SignalConditioner*>(conditioner.get());
+    ASSERT_NE(nullptr, adapter);
+    adapter->set_remove_identity(true);
     ASSERT_FALSE(conditioner->is_identity());
     std::vector<int16_t> input(2050);
     for (size_t i = 0; i < input.size(); i += 2)
@@ -501,7 +516,8 @@ TEST_F(StreamBatcherTest, DeadlineCancellationAndDestruction)
 
 TEST_F(StreamBatcherTest, RejectsInvalidDeadline)
 {
-    for (double delay : {0.0, -1.0, 60001.0, std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN()})
+    EXPECT_NO_THROW(make_stream_batcher(sizeof(int), 1024, 0, 20.0));
+    for (double delay : {0.0, -1.0, 20.001, 40.0, 511.0, 60000.0, std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN()})
         {
             EXPECT_THROW(make_stream_batcher(sizeof(int), 1024, 0, delay), std::invalid_argument);
         }

@@ -54,19 +54,23 @@ ConditionerSchedulingPolicy::Plan ConditionerSchedulingPolicy::select(
     const auto text = trim(configuration.property(role + ".batch_size_ms", std::string("auto")));
     plan.automatic = text == "auto";
     const double duration = plan.automatic ? 0.0 : number(text, role + ".batch_size_ms");
+    if (duration > STREAM_BATCHER_MAX_LATENCY_MS)
+        {
+            throw std::invalid_argument(role + ".batch_size_ms must be auto or in [0, 20] ms");
+        }
     const double observable_ms = number(trim(configuration.property("GNSS-SDR.observable_interval_ms", std::string("20"))), "GNSS-SDR.observable_interval_ms");
     if (observable_ms <= 0.0 || observable_ms > std::numeric_limits<int>::max() || std::floor(observable_ms) != observable_ms)
         {
             throw std::invalid_argument("GNSS-SDR.observable_interval_ms must be a positive integer no larger than INT_MAX");
         }
-    plan.max_latency_ms = std::max(duration, std::min(20.0, observable_ms));
+    plan.max_latency_ms = std::max(duration, std::min(STREAM_BATCHER_MAX_LATENCY_MS, observable_ms));
     if (configuration.is_present(role + ".max_batch_latency_ms"))
         {
             plan.max_latency_ms = number(trim(configuration.property(role + ".max_batch_latency_ms", std::string())), role + ".max_batch_latency_ms");
         }
-    if (plan.max_latency_ms <= 0.0 || plan.max_latency_ms > 60000.0 || duration > plan.max_latency_ms)
+    if (plan.max_latency_ms <= 0.0 || plan.max_latency_ms > STREAM_BATCHER_MAX_LATENCY_MS || duration > plan.max_latency_ms)
         {
-            throw std::invalid_argument(role + ".max_batch_latency_ms must be in (0, 60000] and not smaller than the fixed batch duration");
+            throw std::invalid_argument(role + ".max_batch_latency_ms must be in (0, 20] and not smaller than the fixed batch duration");
         }
     const bool forced_removal = configuration.is_present(role + ".remove_pass_through");
     plan.remove_identity = configuration.property(role + ".remove_pass_through", duration > 0.0);

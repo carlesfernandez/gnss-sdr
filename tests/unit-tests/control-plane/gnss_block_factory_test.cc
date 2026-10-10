@@ -461,13 +461,14 @@ TEST(GNSSBlockFactoryTest, BypassRejectsConflictingProcessing)
 }
 
 
-TEST(GNSSBlockFactoryTest, BatchingRemovesIdentityButPreservesInversion)
+TEST(GNSSBlockFactoryTest, FactoryRetainsPassThroughUntilPlanning)
 {
     InMemoryConfiguration config;
     config.supersede_property("SignalConditioner.implementation", "Pass_Through");
     config.supersede_property("SignalConditioner.batch_size_ms", "10");
     auto conditioner = block_factory::GetSignalConditioner(&config);
-    EXPECT_FALSE(conditioner->get_right_block());
+    EXPECT_TRUE(conditioner->get_right_block());
+    EXPECT_TRUE(conditioner->is_identity());
     EXPECT_EQ(sizeof(gr_complex), conditioner->item_size());
     config.supersede_property("SignalConditioner.inverted_spectrum", "true");
     conditioner = block_factory::GetSignalConditioner(&config);
@@ -476,16 +477,28 @@ TEST(GNSSBlockFactoryTest, BatchingRemovesIdentityButPreservesInversion)
 }
 
 
-TEST(GNSSBlockFactoryTest, IdentityRemovalCanBeDisabled)
+TEST(GNSSBlockFactoryTest, FactoryRetainsStagesRegardlessOfSchedulingOverrides)
 {
-    InMemoryConfiguration config;
-    config.supersede_property("SignalConditioner.implementation", "Signal_Conditioner");
-    config.supersede_property("SignalConditioner.batch_size_ms", "10");
-    config.supersede_property("SignalConditioner.remove_pass_through", "false");
-    auto conditioner = block_factory::GetSignalConditioner(&config);
-    EXPECT_TRUE(conditioner->get_left_block());
-    EXPECT_TRUE(conditioner->get_right_block());
-    EXPECT_NE(conditioner->get_left_block(), conditioner->get_right_block());
+    for (const auto* duration : {"auto", "0", "10"})
+        {
+            for (const auto* remove : {"false", "true"})
+                {
+                    InMemoryConfiguration config;
+                    config.supersede_property("SignalConditioner.implementation", "Signal_Conditioner");
+                    config.supersede_property("SignalConditioner.batch_size_ms", duration);
+                    config.supersede_property("SignalConditioner.remove_pass_through", remove);
+                    auto conditioner = block_factory::GetSignalConditioner(&config);
+                    ASSERT_TRUE(conditioner);
+                    EXPECT_TRUE(conditioner->get_left_block());
+                    EXPECT_TRUE(conditioner->get_right_block());
+                    EXPECT_NE(conditioner->get_left_block(), conditioner->get_right_block());
+                    config.supersede_property("SignalConditioner.implementation", "Pass_Through");
+                    conditioner = block_factory::GetSignalConditioner(&config);
+                    ASSERT_TRUE(conditioner);
+                    EXPECT_TRUE(conditioner->get_right_block());
+                    EXPECT_TRUE(conditioner->is_identity());
+                }
+        }
 }
 
 
@@ -563,8 +576,8 @@ TEST(ConditionerSchedulingPolicyTest, RejectsInvalidAndConflictingOptions)
             config.supersede_property("SignalConditioner.batch_size_ms", value);
             EXPECT_THROW(ConditionerSchedulingPolicy::select(config, "SignalConditioner", request), std::invalid_argument);
         }
-    config.supersede_property("SignalConditioner.batch_size_ms", "40");
-    EXPECT_EQ(40.0, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).max_latency_ms);
+    config.supersede_property("SignalConditioner.batch_size_ms", "20");
+    EXPECT_EQ(20.0, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).max_latency_ms);
     config.supersede_property("SignalConditioner.max_batch_latency_ms", "10");
     EXPECT_THROW(ConditionerSchedulingPolicy::select(config, "SignalConditioner", request), std::invalid_argument);
 }
@@ -652,4 +665,34 @@ TEST(ConditionerSchedulingPolicyTest, TinyAndExtremeRequestsCannotOverflowAutoma
     request.item_size = 8;
     request.minimum_input_items = std::numeric_limits<uint64_t>::max();
     EXPECT_EQ(0U, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).batch_items);
+}
+
+
+TEST(ConditionerSchedulingPolicyTest, RejectsLongDeadlinesAndFixedBatches)
+{
+    InMemoryConfiguration config;
+    ConditionerSchedulingPolicy::Request request;
+    request.sample_rate = 2500000;
+    request.item_size = 8;
+    request.readers = 25;
+    request.identity_stages = 1;
+    // An enlarged observable interval must not enlarge the staging ceiling.
+    config.supersede_property("GNSS-SDR.observable_interval_ms", "1000");
+    EXPECT_EQ(20.0, ConditionerSchedulingPolicy::select(config, "SignalConditioner0", request).max_latency_ms);
+    config.supersede_property("SignalConditioner0.max_batch_latency_ms", "20");
+    EXPECT_EQ(50000U, ConditionerSchedulingPolicy::select(config, "SignalConditioner0", request).batch_items);
+    for (const auto* delay : {"20.001", "40", "511", "60000"})
+        {
+            config.supersede_property("SignalConditioner0.max_batch_latency_ms", delay);
+            EXPECT_THROW(ConditionerSchedulingPolicy::select(config, "SignalConditioner0", request), std::invalid_argument);
+        }
+    config.supersede_property("SignalConditioner0.max_batch_latency_ms", "20");
+    for (const auto* duration : {"20.001", "40", "511", "60000"})
+        {
+            config.supersede_property("SignalConditioner.batch_size_ms", duration);
+            // No explicit deadline: the fixed duration must not raise its default.
+            EXPECT_THROW(ConditionerSchedulingPolicy::select(config, "SignalConditioner", request), std::invalid_argument);
+            config.supersede_property("SignalConditioner0.batch_size_ms", duration);
+            EXPECT_THROW(ConditionerSchedulingPolicy::select(config, "SignalConditioner0", request), std::invalid_argument);
+        }
 }

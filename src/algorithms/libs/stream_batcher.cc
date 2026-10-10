@@ -36,10 +36,9 @@
 stream_batcher_sptr make_stream_batcher(size_t item_size, uint64_t batch_items, uint64_t max_buffer_items,
     double max_latency_ms, std::shared_ptr<StreamBatcherDeadline> deadlines)
 {
-    // Bound conversion to a clock duration as well as configuration mistakes.
-    if (!std::isfinite(max_latency_ms) || max_latency_ms <= 0.0 || max_latency_ms > 60000.0)
+    if (!std::isfinite(max_latency_ms) || max_latency_ms <= 0.0 || max_latency_ms > STREAM_BATCHER_MAX_LATENCY_MS)
         {
-            throw std::invalid_argument("SignalConditioner maximum batching latency must be in (0, 60000] ms");
+            throw std::invalid_argument("SignalConditioner maximum batching latency must be in (0, 20] ms");
         }
     const auto max_items = static_cast<uint64_t>(std::numeric_limits<int>::max());
     if (item_size == 0 || item_size > max_items || batch_items == 0 || batch_items > max_items / 2)

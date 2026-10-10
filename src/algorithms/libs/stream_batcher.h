@@ -19,6 +19,7 @@
 #define GNSS_SDR_STREAM_BATCHER_H
 
 #include "gnss_block_interface.h"
+#include "stream_batcher_limits.h"
 #include <gnuradio/block.h>
 #include <gnuradio/tags.h>
 #include <cstddef>
@@ -37,7 +38,7 @@ class StreamBatcherDeadline;
 using stream_batcher_sptr = gnss_shared_ptr<stream_batcher>;
 
 stream_batcher_sptr make_stream_batcher(size_t item_size, uint64_t batch_items, uint64_t max_buffer_items,
-    double max_latency_ms = 20.0, std::shared_ptr<StreamBatcherDeadline> deadlines = {});
+    double max_latency_ms = STREAM_BATCHER_MAX_LATENCY_MS, std::shared_ptr<StreamBatcherDeadline> deadlines = {});
 
 class stream_batcher : public gr::block
 {

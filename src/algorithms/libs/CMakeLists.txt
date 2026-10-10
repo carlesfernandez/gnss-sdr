@@ -72,6 +72,7 @@ set(GNSS_SPLIBS_HEADERS
     pass_through.h
     stream_batcher.h
     stream_batcher_deadline.h
+    stream_batcher_limits.h
     short_x2_to_cshort.h
     gnss_sdr_string_literals.h
     gnss_time.h

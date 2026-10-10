@@ -21,6 +21,7 @@
 
 #include "acquisition_interface.h"
 #include "concurrent_queue.h"
+#include "conditioner_scheduling_policy.h"
 #include "gnss_block_factory.h"
 #include "gnss_block_interface.h"
 #include "gnss_sdr_make_unique.h"
@@ -29,6 +30,7 @@
 #include "tracking_interface.h"
 #include <gtest/gtest.h>
 #include <pmt/pmt.h>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -431,4 +433,223 @@ TEST(GNSSBlockFactoryTest, InstantiateWrongPvt3)
     configuration->set_property("PVT.implementation", "Quantum_Particle_PVT");
     auto pvt = block_factory::GetPVT(configuration.get());
     EXPECT_EQ(nullptr, pvt);
+}
+
+
+TEST(GNSSBlockFactoryTest, BypassHasNoProcessingBlocks)
+{
+    InMemoryConfiguration config;
+    config.supersede_property("SignalConditioner.implementation", "Bypass");
+    auto conditioner = block_factory::GetSignalConditioner(&config);
+    ASSERT_TRUE(conditioner);
+    EXPECT_TRUE(conditioner->is_identity());
+    EXPECT_FALSE(conditioner->get_left_block());
+    EXPECT_FALSE(conditioner->get_right_block());
+    EXPECT_EQ(0U, conditioner->item_size());
+}
+
+
+TEST(GNSSBlockFactoryTest, BypassRejectsConflictingProcessing)
+{
+    InMemoryConfiguration config;
+    config.supersede_property("SignalConditioner.implementation", "Bypass");
+    config.supersede_property("InputFilter.implementation", "Freq_Xlating_Fir_Filter");
+    EXPECT_THROW(block_factory::GetSignalConditioner(&config), std::invalid_argument);
+    config.supersede_property("InputFilter.implementation", "Pass_Through");
+    config.supersede_property("Resampler.inverted_spectrum", "true");
+    EXPECT_THROW(block_factory::GetSignalConditioner(&config), std::invalid_argument);
+}
+
+
+TEST(GNSSBlockFactoryTest, BatchingRemovesIdentityButPreservesInversion)
+{
+    InMemoryConfiguration config;
+    config.supersede_property("SignalConditioner.implementation", "Pass_Through");
+    config.supersede_property("SignalConditioner.batch_size_ms", "10");
+    auto conditioner = block_factory::GetSignalConditioner(&config);
+    EXPECT_FALSE(conditioner->get_right_block());
+    EXPECT_EQ(sizeof(gr_complex), conditioner->item_size());
+    config.supersede_property("SignalConditioner.inverted_spectrum", "true");
+    conditioner = block_factory::GetSignalConditioner(&config);
+    EXPECT_TRUE(conditioner->get_right_block());
+    EXPECT_FALSE(conditioner->is_identity());
+}
+
+
+TEST(GNSSBlockFactoryTest, IdentityRemovalCanBeDisabled)
+{
+    InMemoryConfiguration config;
+    config.supersede_property("SignalConditioner.implementation", "Signal_Conditioner");
+    config.supersede_property("SignalConditioner.batch_size_ms", "10");
+    config.supersede_property("SignalConditioner.remove_pass_through", "false");
+    auto conditioner = block_factory::GetSignalConditioner(&config);
+    EXPECT_TRUE(conditioner->get_left_block());
+    EXPECT_TRUE(conditioner->get_right_block());
+    EXPECT_NE(conditioner->get_left_block(), conditioner->get_right_block());
+}
+
+
+TEST(ConditionerSchedulingPolicyTest, AutomaticCopyReplacementAndSafeFallbacks)
+{
+    InMemoryConfiguration config;
+    ConditionerSchedulingPolicy::Request request;
+    request.sample_rate = 2500000;
+    request.item_size = 8;
+    request.readers = 25;
+    request.identity_stages = 1;
+    auto plan = ConditionerSchedulingPolicy::select(config, "SignalConditioner", request);
+    EXPECT_TRUE(plan.automatic);
+    EXPECT_TRUE(plan.remove_identity);
+    EXPECT_EQ(50000U, plan.batch_items);
+    EXPECT_EQ(20.0, plan.max_latency_ms);
+    request.identity_stages = 0;
+    EXPECT_EQ(0U, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).batch_items);
+    request.identity_stages = 1;
+    request.eligible = false;
+    EXPECT_EQ(0U, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).batch_items);
+    request.eligible = true;
+    for (size_t readers : {0U, 1U})
+        {
+            request.readers = readers;
+            EXPECT_EQ(0U, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).batch_items);
+        }
+    for (size_t readers : {2U, 25U, 41U, 1000U})
+        {
+            request.readers = readers;
+            EXPECT_EQ(50000U, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).batch_items);
+        }
+}
+
+
+TEST(ConditionerSchedulingPolicyTest, LimitsAndExplicitOverrides)
+{
+    InMemoryConfiguration config;
+    ConditionerSchedulingPolicy::Request request;
+    request.sample_rate = 2500000;
+    request.item_size = 8;
+    request.readers = 25;
+    request.identity_stages = 3;
+    config.supersede_property("GNSS-SDR.observable_interval_ms", "4");
+    auto plan = ConditionerSchedulingPolicy::select(config, "SignalConditioner", request);
+    EXPECT_EQ(10000U, plan.batch_items);
+    EXPECT_EQ(4.0, plan.max_latency_ms);
+    config.supersede_property("GNSS-SDR.max_source_buffer_samples", "4096");
+    EXPECT_EQ(2048U, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).batch_items);
+    config.supersede_property("SignalConditioner.batch_size_ms", "1");
+    plan = ConditionerSchedulingPolicy::select(config, "SignalConditioner", request);
+    EXPECT_FALSE(plan.automatic);
+    EXPECT_EQ(2048U, plan.batch_items);
+    EXPECT_TRUE(plan.remove_identity);
+    config.supersede_property("SignalConditioner.batch_size_ms", "0");
+    plan = ConditionerSchedulingPolicy::select(config, "SignalConditioner", request);
+    EXPECT_EQ(0U, plan.batch_items);
+    EXPECT_FALSE(plan.remove_identity);
+    config.supersede_property("SignalConditioner.batch_size_ms", "auto");
+    config.supersede_property("SignalConditioner.remove_pass_through", "false");
+    plan = ConditionerSchedulingPolicy::select(config, "SignalConditioner", request);
+    EXPECT_EQ(0U, plan.batch_items);
+    EXPECT_FALSE(plan.remove_identity);
+}
+
+
+TEST(ConditionerSchedulingPolicyTest, RejectsInvalidAndConflictingOptions)
+{
+    InMemoryConfiguration config;
+    ConditionerSchedulingPolicy::Request request;
+    request.sample_rate = 2500000;
+    request.item_size = 8;
+    for (const auto* value : {"nan", "inf", "-1", "10junk", "", "1e100"})
+        {
+            config.supersede_property("SignalConditioner.batch_size_ms", value);
+            EXPECT_THROW(ConditionerSchedulingPolicy::select(config, "SignalConditioner", request), std::invalid_argument);
+        }
+    config.supersede_property("SignalConditioner.batch_size_ms", "40");
+    EXPECT_EQ(40.0, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).max_latency_ms);
+    config.supersede_property("SignalConditioner.max_batch_latency_ms", "10");
+    EXPECT_THROW(ConditionerSchedulingPolicy::select(config, "SignalConditioner", request), std::invalid_argument);
+}
+
+
+TEST(ConditionerSchedulingPolicyTest, ConsumerWindowsConstrainAutomaticSelection)
+{
+    InMemoryConfiguration config;
+    ConditionerSchedulingPolicy::Request request;
+    request.sample_rate = 2500000;
+    request.item_size = 8;
+    request.readers = 25;
+    request.identity_stages = 1;
+    request.minimum_input_items = 50000;
+    auto plan = ConditionerSchedulingPolicy::select(config, "SignalConditioner", request);
+    EXPECT_EQ(50000U, plan.batch_items);
+    EXPECT_EQ(100000U, plan.min_buffer_items);
+    request.minimum_input_items = 140000;
+    plan = ConditionerSchedulingPolicy::select(config, "SignalConditioner", request);
+    EXPECT_EQ(50000U, plan.batch_items);
+    EXPECT_EQ(140001U, plan.min_buffer_items);
+    config.supersede_property("GNSS-SDR.max_source_buffer_samples", "131072");
+    EXPECT_EQ(0U, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).batch_items);
+    config.supersede_property("GNSS-SDR.max_source_buffer_samples", "0");
+    config.supersede_property("SignalConditioner.batch_size_ms", "1");
+    plan = ConditionerSchedulingPolicy::select(config, "SignalConditioner", request);
+    EXPECT_EQ(140001U, plan.min_buffer_items);
+    config.supersede_property("GNSS-SDR.max_source_buffer_samples", "8192");
+    EXPECT_THROW(ConditionerSchedulingPolicy::select(config, "SignalConditioner", request), std::invalid_argument);
+}
+
+
+TEST(ConditionerSchedulingPolicyTest, PartialPublicationFitsAConsumerWindowLargerThanBatch)
+{
+    InMemoryConfiguration config;
+    config.supersede_property("SignalConditioner.batch_size_ms", "1");
+    config.supersede_property("GNSS-SDR.max_source_buffer_samples", "4096");
+    ConditionerSchedulingPolicy::Request request;
+    request.sample_rate = 1024000;
+    request.item_size = 8;
+    request.minimum_input_items = 3500;
+    const auto plan = ConditionerSchedulingPolicy::select(config, "SignalConditioner", request);
+    EXPECT_EQ(1024U, plan.batch_items);
+    EXPECT_EQ(3501U, plan.min_buffer_items);
+    for (const auto* limit : {"bad", "nan", "1.5", "-1", "1"})
+        {
+            config.supersede_property("GNSS-SDR.max_source_buffer_samples", limit);
+            EXPECT_THROW(ConditionerSchedulingPolicy::select(config, "SignalConditioner", request), std::invalid_argument);
+        }
+}
+
+
+TEST(ConditionerSchedulingPolicyTest, MemoryBudgetUsesBytesAcrossSampleFormats)
+{
+    InMemoryConfiguration config;
+    ConditionerSchedulingPolicy::Request request;
+    request.sample_rate = 100000000;
+    request.readers = 64;
+    request.identity_stages = 1;
+    request.minimum_input_items = 2000000;
+    for (size_t item_size : {1U, 2U, 4U, 8U, 16U})
+        {
+            request.item_size = item_size;
+            const auto plan = ConditionerSchedulingPolicy::select(config, "SignalConditioner", request);
+            EXPECT_TRUE(plan.remove_identity);
+            EXPECT_EQ(512U * 1024U, plan.batch_items * item_size);
+            EXPECT_EQ(2000001U, plan.min_buffer_items);
+        }
+}
+
+
+TEST(ConditionerSchedulingPolicyTest, TinyAndExtremeRequestsCannotOverflowAutomaticSelection)
+{
+    InMemoryConfiguration config;
+    ConditionerSchedulingPolicy::Request request;
+    request.sample_rate = 1.0;
+    request.item_size = 8;
+    request.readers = 2;
+    request.identity_stages = 1;
+    EXPECT_EQ(0U, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).batch_items);
+    request.sample_rate = std::numeric_limits<double>::max();
+    EXPECT_EQ(65536U, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).batch_items);
+    request.item_size = std::numeric_limits<size_t>::max();
+    EXPECT_EQ(0U, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).batch_items);
+    request.item_size = 8;
+    request.minimum_input_items = std::numeric_limits<uint64_t>::max();
+    EXPECT_EQ(0U, ConditionerSchedulingPolicy::select(config, "SignalConditioner", request).batch_items);
 }

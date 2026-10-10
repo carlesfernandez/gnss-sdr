@@ -12,6 +12,21 @@ SPDX-FileCopyrightText: 2011-2026 Carles Fernandez-Prades <carles.fernandez@cttc
 
 All notable changes to GNSS-SDR will be documented in this file.
 
+## [Unreleased](https://github.com/gnss-sdr/gnss-sdr/tree/next)
+
+### Improvements in Efficiency:
+
+- Improved Signal Conditioner scheduling with portable, configuration-aware
+  sample batching and redundant pass-through removal, reducing channel
+  scheduling overhead without configuration changes. Preserves samples and
+  stream tags, flushes partial batches on deadlines or EOF, and improves
+  flowgraph connection cleanup.
+
+See the definitions of concepts and metrics at
+https://gnss-sdr.org/design-forces/
+
+&nbsp;
+
 ## [GNSS-SDR v0.0.22](https://github.com/gnss-sdr/gnss-sdr/releases/tag/v0.0.22) - 2026-10-04
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23182959.svg)](https://doi.org/10.5281/zenodo.23182959)

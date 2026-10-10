@@ -56,7 +56,7 @@ class ConfigurationInterface;
 //!
 //!   .seconds_to_skip - number of seconds of lead-in data to skip over (default 0)
 //!
-//!   .enable_throttle_control - whether to stop reading if the upstream buffer is full (default false)
+//!   .enable_throttle_control - pace replay at sampling_frequency (default false)
 //!
 //!   .repeat   - whether to rewind and continue at end of file (default false)
 //!

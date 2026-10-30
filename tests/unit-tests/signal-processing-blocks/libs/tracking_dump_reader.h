@@ -45,44 +45,44 @@ public:
 
     // tracking dump variables
     // VEPLVL
-    float abs_VE;
-    float abs_E;
-    float abs_P;
-    float abs_L;
-    float abs_VL;
+    float abs_VE{};
+    float abs_E{};
+    float abs_P{};
+    float abs_L{};
+    float abs_VL{};
     // PROMPT I and Q (to analyze navigation symbols)
-    float prompt_I;
-    float prompt_Q;
+    float prompt_I{};
+    float prompt_Q{};
     // PRN start sample stamp
-    uint64_t PRN_start_sample_count;
+    uint64_t PRN_start_sample_count{};
 
     // accumulated carrier phase
-    double acc_carrier_phase_rad;
+    double acc_carrier_phase_rad{};
 
     // carrier and code frequency
-    float carrier_doppler_hz;
-    float carrier_doppler_rate_hz_s;
-    float code_freq_chips;
+    float carrier_doppler_hz{};
+    float carrier_doppler_rate_hz_s{};
+    float code_freq_chips{};
     float code_freq_rate_chips{};  // not in GPS_L1_CA_GAUSSIAN dumps
 
     // PLL commands
-    float carr_error_hz;
+    float carr_error_hz{};
     float carr_noise_sigma2{};  // only in GPS_L1_CA_GAUSSIAN dumps
-    float carr_error_filt_hz;
+    float carr_error_filt_hz{};
 
     // DLL commands
-    float code_error_chips;
-    float code_error_filt_chips;
+    float code_error_chips{};
+    float code_error_filt_chips{};
 
     // CN0 and carrier lock test
-    float CN0_SNV_dB_Hz;
-    float carrier_lock_test;
+    float CN0_SNV_dB_Hz{};
+    float carrier_lock_test{};
 
     // AUX vars (for debug purposes)
-    float aux1;
-    double aux2;
+    float aux1{};
+    double aux2{};
 
-    unsigned int PRN;
+    unsigned int PRN{};
     uint64_t TOW_ms{};  // only in DLL_PLL_VEML dumps
     int32_t WN{};       // only in DLL_PLL_VEML dumps
 

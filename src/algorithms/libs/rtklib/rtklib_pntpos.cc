@@ -508,6 +508,13 @@ double prange(const obsd_t *obs, const nav_t *nav, const double *azel,
                             /* B3I is the DNAV timing reference; no TGD1 applied */
                             PC = P1;
                         }
+                    else if ((sys == SYS_GPS || sys == SYS_QZS) &&
+                             (obs->code[i] == CODE_L1L || obs->code[i] == CODE_L1S || obs->code[i] == CODE_L1X))
+                        {
+                            /* L1C single frequency, IS-GPS-800J 3.5.3.9.1:
+                               (dt_SV)L1CP = dt_SV - TGD + ISC_L1CP */
+                            PC = P1 - P1_P2 + ISCl1;
+                        }
                     else
                         {
                             P1 += P1_C1; /* C1->P1 */

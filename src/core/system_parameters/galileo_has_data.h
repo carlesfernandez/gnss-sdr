@@ -80,8 +80,8 @@ public:
     float get_delta_radial_m(const std::string& system, int prn) const;                   //!< Get orbital radial correction in [m] for a given system ("GPS"/"Galileo") and PRN
     float get_delta_in_track_m(const std::string& system, int prn) const;                 //!< Get orbital in_track correction in [m] for a given system ("GPS"/"Galileo") and PRN
     float get_delta_cross_track_m(const std::string& system, int prn) const;              //!< Get orbital cross_track correction in [m] for a given system ("GPS"/"Galileo") and PRN
-    float get_clock_correction_mult_m(const std::string& system, int prn) const;          //!< Get clock correction in [m], already multiplied by its Delta Clock Multiplier, for a given system ("GPS"/"Galileo") and PRN
-    float get_clock_subset_correction_mult_m(const std::string& system, int prn) const;   //!< Get clock correction subset in [m], already multiplied by its Delta Clock Multiplier
+    float get_clock_correction_mult_m(const std::string& system, int prn) const;          //!< Get clock correction in [m], already multiplied by its Delta Clock Multiplier, for a given system ("GPS"/"Galileo") and PRN. Check the result with is_clock_unavailable() and is_clock_do_not_use()
+    float get_clock_subset_correction_mult_m(const std::string& system, int prn) const;   //!< Get clock correction subset in [m], already multiplied by its Delta Clock Multiplier. Check the result with is_clock_unavailable() and is_clock_do_not_use()
     uint16_t get_nsat() const;                                                            //!< Get total number of satellites with corrections
     uint16_t get_nsat_sub() const;                                                        //!< Get number of satellites in clock subset corrections
     uint16_t get_validity_interval_s(uint8_t validity_interval_index) const;              //!< Get validity interval in [s] from the validity_interval_index
@@ -89,11 +89,11 @@ public:
     uint16_t get_gnss_iod(const std::string& system, int prn) const;                      //!< Get GNSS IOD from a given system ("GPS"/"Galileo") and PRN
     uint8_t get_gnss_id(int nsat) const;                                                  //!< Get GNSS ID from the nsat satellite
     uint8_t get_phase_discontinuity_indicator(const std::string& signal, int PRN) const;  //!< Get PDI for a given signal and PRN satellite
-    static bool has_validity_interval_at_tow(uint32_t valid_until, uint32_t tow);         //!< Check whether a validity end time is active at the given TOW
+    static bool has_validity_interval_at_tow(uint32_t valid_until, uint32_t tow);         //!< Check whether a validity end time (t_MT1 + VI, possibly beyond the end of the week) is active at the given TOW
     static bool is_orbit_radial_unavailable(float value);                                 //!< Check HAS radial correction unavailable sentinel
     static bool is_orbit_along_cross_unavailable(float value);                            //!< Check HAS along/cross-track correction unavailable sentinel
-    static bool is_clock_unavailable(float value);                                        //!< Check HAS clock correction unavailable sentinel
-    static bool is_clock_do_not_use(float value);                                         //!< Check HAS clock correction do-not-use sentinel
+    static bool is_clock_unavailable(float value);                                        //!< Check whether a value returned by the clock correction getters flags data not available
+    static bool is_clock_do_not_use(float value);                                         //!< Check whether a value returned by the clock correction getters flags that the satellite shall not be used
     static bool is_code_bias_unavailable(float value);                                    //!< Check HAS code bias unavailable sentinel
     static bool is_phase_bias_unavailable(float value);                                   //!< Check HAS phase bias unavailable sentinel
 

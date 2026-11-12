@@ -1425,6 +1425,7 @@ void Rtklib_Solver::get_current_has_obs_correction(const std::string &signal, ui
                             auto &has_obs_correction = this->d_has_obs_corr_map[signal][prn];
                             has_obs_correction.signal = signal;
                             has_obs_correction.phase_bias_cycle = phase_bias_correction.bias;
+                            has_obs_correction.phase_bias_available = true;
 
                             const auto pdi_signal_it = this->d_has_phase_discontinuity_indicator_store_map.find(signal);
                             if (pdi_signal_it != this->d_has_phase_discontinuity_indicator_store_map.end())
@@ -1493,6 +1494,30 @@ void Rtklib_Solver::update_galileo_observation_wavelengths(const obsd_t &observa
                     d_nav_data.lam[observation.sat - 1][slot] = wavelength;
                 }
         }
+}
+
+
+obsd_t Rtklib_Solver::insert_obs_with_has_corrections(obsd_t &rtklib_obs,
+    const Gnss_Synchro &gnss_synchro,
+    int week,
+    int band,
+    int ref_week,
+    bool has_corrected_ephemeris)
+{
+    const HAS_obs_corrections *applied_has_correction = nullptr;
+    obsd_t observation = has_corrected_ephemeris
+                             ? insert_obs_to_rtklib(rtklib_obs, gnss_synchro, d_has_obs_corr_map, week, band, &applied_has_correction, ref_week)
+                             : insert_obs_to_rtklib(rtklib_obs, gnss_synchro, week, band, ref_week);
+    clear_applied_has_phase_bias_discontinuity(applied_has_correction, static_cast<int>(gnss_synchro.PRN));
+
+    // Turning the HAS orbit and clock corrections or the phase bias on or off
+    // steps the carrier phase: restart its ambiguity
+    const bool phase_bias_applied = applied_has_correction != nullptr && applied_has_correction->phase_bias_available;
+    if (d_has_carrier_continuity.changed(observation.sat, std::string(gnss_synchro.Signal, 2), has_corrected_ephemeris, phase_bias_applied))
+        {
+            observation.LLI[band] |= 1U;
+        }
+    return observation;
 }
 
 
@@ -2287,11 +2312,12 @@ bool Rtklib_Solver::substitute_base_ephemeris(const Ntrip_Rtcm_Snapshot *fixed_b
     // corrections and keeps its group delays, so the observation must not
     // get HAS biases either (HAS SIS ICD 1.0 Section 7.4)
     obsd_t newobs{};
-    d_obs_data[valid_obs + glo_valid_obs] = insert_obs_to_rtklib(newobs,
+    d_obs_data[valid_obs + glo_valid_obs] = insert_obs_with_has_corrections(newobs,
         gnss_synchro,
         week,
         d_rtklib_band_index.at(band_key),
-        (system == SYS_GAL || system == SYS_BDS) ? 0 : this->get_ref_gps_week());
+        (system == SYS_GAL || system == SYS_BDS) ? 0 : this->get_ref_gps_week(),
+        false);
     valid_obs++;
     return true;
 }
@@ -2369,25 +2395,12 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                                         // convert observation from GNSS-SDR class to RTKLIB structure
                                         // HAS biases go only with a HAS-corrected ephemeris
                                         obsd_t newobs{};
-                                        const HAS_obs_corrections *applied_has_correction = nullptr;
-                                        if (!eph_data[valid_obs].apply_has_corrections)
-                                            {
-                                                d_obs_data[valid_obs + glo_valid_obs] = insert_obs_to_rtklib(newobs,
-                                                    gnss_observables_iter->second,
-                                                    selected_galileo_ephemeris.WN,
-                                                    d_rtklib_band_index.at(sig_));
-                                            }
-                                        else
-                                            {
-                                                d_obs_data[valid_obs + glo_valid_obs] = insert_obs_to_rtklib(newobs,
-                                                    gnss_observables_iter->second,
-                                                    d_has_obs_corr_map,
-                                                    selected_galileo_ephemeris.WN,
-                                                    d_rtklib_band_index.at(sig_),
-                                                    &applied_has_correction,
-                                                    false);
-                                            }
-                                        clear_applied_has_phase_bias_discontinuity(applied_has_correction, prn);
+                                        d_obs_data[valid_obs + glo_valid_obs] = insert_obs_with_has_corrections(newobs,
+                                            gnss_observables_iter->second,
+                                            selected_galileo_ephemeris.WN,
+                                            d_rtklib_band_index.at(sig_),
+                                            0,
+                                            eph_data[valid_obs].apply_has_corrections);
                                         valid_obs++;
                                     }
                                 // the rover has not decoded this satellite's I/NAV yet: the
@@ -2413,25 +2426,12 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                                             {
                                                 if (eph_data[i].sat == (static_cast<int>(gnss_observables_iter->second.PRN + NSATGPS + NSATGLO)))
                                                     {
-                                                        const HAS_obs_corrections *applied_has_correction = nullptr;
-                                                        if (!eph_data[i].apply_has_corrections)
-                                                            {
-                                                                d_obs_data[i + glo_valid_obs] = insert_obs_to_rtklib(d_obs_data[i + glo_valid_obs],
-                                                                    gnss_observables_iter->second,
-                                                                    selected_galileo_ephemeris.WN,
-                                                                    d_rtklib_band_index.at(sig_));
-                                                            }
-                                                        else
-                                                            {
-                                                                d_obs_data[i + glo_valid_obs] = insert_obs_to_rtklib(d_obs_data[i + glo_valid_obs],
-                                                                    gnss_observables_iter->second,
-                                                                    d_has_obs_corr_map,
-                                                                    selected_galileo_ephemeris.WN,
-                                                                    d_rtklib_band_index.at(sig_),
-                                                                    &applied_has_correction,
-                                                                    false);
-                                                            }
-                                                        clear_applied_has_phase_bias_discontinuity(applied_has_correction, prn);
+                                                        d_obs_data[i + glo_valid_obs] = insert_obs_with_has_corrections(d_obs_data[i + glo_valid_obs],
+                                                            gnss_observables_iter->second,
+                                                            selected_galileo_ephemeris.WN,
+                                                            d_rtklib_band_index.at(sig_),
+                                                            0,
+                                                            eph_data[i].apply_has_corrections);
                                                         found_E1_obs = true;
                                                         break;
                                                     }
@@ -2446,25 +2446,12 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                                                 obsd_t newobs = {{0, 0}, '0', '0', {}, {},
                                                     {default_code_, default_code_, default_code_},
                                                     {}, {0.0, 0.0, 0.0}, {}, {}, {}};
-                                                const HAS_obs_corrections *applied_has_correction = nullptr;
-                                                if (!eph_data[valid_obs].apply_has_corrections)
-                                                    {
-                                                        d_obs_data[valid_obs + glo_valid_obs] = insert_obs_to_rtklib(newobs,
-                                                            gnss_observables_iter->second,
-                                                            selected_galileo_ephemeris.WN,
-                                                            d_rtklib_band_index.at(sig_));
-                                                    }
-                                                else
-                                                    {
-                                                        d_obs_data[valid_obs + glo_valid_obs] = insert_obs_to_rtklib(newobs,
-                                                            gnss_observables_iter->second,
-                                                            d_has_obs_corr_map,
-                                                            selected_galileo_ephemeris.WN,
-                                                            d_rtklib_band_index.at(sig_),
-                                                            &applied_has_correction,
-                                                            false);
-                                                    }
-                                                clear_applied_has_phase_bias_discontinuity(applied_has_correction, prn);
+                                                d_obs_data[valid_obs + glo_valid_obs] = insert_obs_with_has_corrections(newobs,
+                                                    gnss_observables_iter->second,
+                                                    selected_galileo_ephemeris.WN,
+                                                    d_rtklib_band_index.at(sig_),
+                                                    0,
+                                                    eph_data[valid_obs].apply_has_corrections);
                                                 valid_obs++;
                                             }
                                     }
@@ -2482,25 +2469,12 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                                             {
                                                 if (eph_data[i].sat == (static_cast<int>(gnss_observables_iter->second.PRN + NSATGPS + NSATGLO)))
                                                     {
-                                                        const HAS_obs_corrections *applied_has_correction = nullptr;
-                                                        if (eph_data[i].apply_has_corrections)
-                                                            {
-                                                                d_obs_data[i + glo_valid_obs] = insert_obs_to_rtklib(d_obs_data[i + glo_valid_obs],
-                                                                    gnss_observables_iter->second,
-                                                                    d_has_obs_corr_map,
-                                                                    selected_galileo_ephemeris.WN,
-                                                                    d_rtklib_band_index.at(sig_),
-                                                                    &applied_has_correction,
-                                                                    false);
-                                                            }
-                                                        else
-                                                            {
-                                                                d_obs_data[i + glo_valid_obs] = insert_obs_to_rtklib(d_obs_data[i + glo_valid_obs],
-                                                                    gnss_observables_iter->second,
-                                                                    selected_galileo_ephemeris.WN,
-                                                                    d_rtklib_band_index.at(sig_));
-                                                            }
-                                                        clear_applied_has_phase_bias_discontinuity(applied_has_correction, prn);
+                                                        d_obs_data[i + glo_valid_obs] = insert_obs_with_has_corrections(d_obs_data[i + glo_valid_obs],
+                                                            gnss_observables_iter->second,
+                                                            selected_galileo_ephemeris.WN,
+                                                            d_rtklib_band_index.at(sig_),
+                                                            0,
+                                                            eph_data[i].apply_has_corrections);
                                                         found_E1_obs = true;
                                                         break;
                                                     }
@@ -2517,25 +2491,12 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                                                 obsd_t newobs = {{0, 0}, '0', '0', {}, {},
                                                     {default_code_, default_code_, default_code_},
                                                     {}, {0.0, 0.0, 0.0}, {}, {}, {}};
-                                                const HAS_obs_corrections *applied_has_correction = nullptr;
-                                                if (eph_data[valid_obs].apply_has_corrections)
-                                                    {
-                                                        d_obs_data[valid_obs + glo_valid_obs] = insert_obs_to_rtklib(newobs,
-                                                            gnss_observables_iter->second,
-                                                            d_has_obs_corr_map,
-                                                            selected_galileo_ephemeris.WN,
-                                                            d_rtklib_band_index.at(sig_),
-                                                            &applied_has_correction,
-                                                            false);
-                                                    }
-                                                else
-                                                    {
-                                                        d_obs_data[valid_obs + glo_valid_obs] = insert_obs_to_rtklib(newobs,
-                                                            gnss_observables_iter->second,
-                                                            selected_galileo_ephemeris.WN,
-                                                            d_rtklib_band_index.at(sig_));
-                                                    }
-                                                clear_applied_has_phase_bias_discontinuity(applied_has_correction, prn);
+                                                d_obs_data[valid_obs + glo_valid_obs] = insert_obs_with_has_corrections(newobs,
+                                                    gnss_observables_iter->second,
+                                                    selected_galileo_ephemeris.WN,
+                                                    d_rtklib_band_index.at(sig_),
+                                                    0,
+                                                    eph_data[valid_obs].apply_has_corrections);
                                                 valid_obs++;
                                             }
                                     }
@@ -2580,26 +2541,12 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                                         // convert observation from GNSS-SDR class to RTKLIB structure
                                         // HAS biases go only with a HAS-corrected ephemeris
                                         obsd_t newobs{};
-                                        const HAS_obs_corrections *applied_has_correction = nullptr;
-                                        if (eph_data[valid_obs].apply_has_corrections)
-                                            {
-                                                d_obs_data[valid_obs + glo_valid_obs] = insert_obs_to_rtklib(newobs,
-                                                    gnss_observables_iter->second,
-                                                    d_has_obs_corr_map,
-                                                    gps_ephemeris_iter->second.WN,
-                                                    d_rtklib_band_index.at(rtklib_sig),
-                                                    &applied_has_correction,
-                                                    this->get_ref_gps_week());
-                                            }
-                                        else
-                                            {
-                                                d_obs_data[valid_obs + glo_valid_obs] = insert_obs_to_rtklib(newobs,
-                                                    gnss_observables_iter->second,
-                                                    gps_ephemeris_iter->second.WN,
-                                                    d_rtklib_band_index.at(rtklib_sig),
-                                                    this->get_ref_gps_week());
-                                            }
-                                        clear_applied_has_phase_bias_discontinuity(applied_has_correction, prn);
+                                        d_obs_data[valid_obs + glo_valid_obs] = insert_obs_with_has_corrections(newobs,
+                                            gnss_observables_iter->second,
+                                            gps_ephemeris_iter->second.WN,
+                                            d_rtklib_band_index.at(rtklib_sig),
+                                            this->get_ref_gps_week(),
+                                            eph_data[valid_obs].apply_has_corrections);
                                         valid_obs++;
                                     }
                                 // the rover has not decoded this satellite's LNAV yet: the
@@ -2646,10 +2593,12 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                                                         // An L2C or L5 observation came first: L1C fills the first
                                                         // slot, and its ISC replaces the L1 C/A one
                                                         eph_data[i].isc[0] = cnav2_iter->second.ISCL1CP;
-                                                        d_obs_data[i + glo_valid_obs] = insert_obs_to_rtklib(d_obs_data[i + glo_valid_obs],
+                                                        d_obs_data[i + glo_valid_obs] = insert_obs_with_has_corrections(d_obs_data[i + glo_valid_obs],
                                                             gnss_observables_iter->second,
                                                             cnav2_iter->second.WN,
-                                                            d_rtklib_band_index.at(sig_));
+                                                            d_rtklib_band_index.at(sig_),
+                                                            0,
+                                                            false);
                                                         found_existing_obs = true;
                                                         break;
                                                     }
@@ -2658,10 +2607,12 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                                             {
                                                 eph_data[valid_obs] = eph_to_rtklib(cnav2_iter->second);
                                                 obsd_t newobs{};
-                                                d_obs_data[valid_obs + glo_valid_obs] = insert_obs_to_rtklib(newobs,
+                                                d_obs_data[valid_obs + glo_valid_obs] = insert_obs_with_has_corrections(newobs,
                                                     gnss_observables_iter->second,
                                                     cnav2_iter->second.WN,
-                                                    d_rtklib_band_index.at(sig_));
+                                                    d_rtklib_band_index.at(sig_),
+                                                    0,
+                                                    false);
                                                 valid_obs++;
                                             }
                                     }
@@ -2694,25 +2645,12 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                                                         eph_data[i].isc[1] = gps_cnav_ephemeris_iter->second.ISCL2;
                                                         eph_data[i].isc[2] = gps_cnav_ephemeris_iter->second.ISCL5I;
                                                         eph_data[i].isc[3] = gps_cnav_ephemeris_iter->second.ISCL5Q;
-                                                        if (eph_data[i].apply_has_corrections)
-                                                            {
-                                                                const HAS_obs_corrections *applied_has_correction = nullptr;
-                                                                d_obs_data[i + glo_valid_obs] = insert_obs_to_rtklib(d_obs_data[i + glo_valid_obs],
-                                                                    gnss_observables_iter->second,
-                                                                    d_has_obs_corr_map,
-                                                                    gps_cnav_ephemeris_iter->second.WN,
-                                                                    d_rtklib_band_index.at(rtklib_sig),
-                                                                    &applied_has_correction,
-                                                                    false);
-                                                                clear_applied_has_phase_bias_discontinuity(applied_has_correction, prn);
-                                                            }
-                                                        else
-                                                            {
-                                                                d_obs_data[i + glo_valid_obs] = insert_obs_to_rtklib(d_obs_data[i + glo_valid_obs],
-                                                                    gnss_observables_iter->second,
-                                                                    gps_cnav_ephemeris_iter->second.WN,
-                                                                    d_rtklib_band_index.at(rtklib_sig));
-                                                            }
+                                                        d_obs_data[i + glo_valid_obs] = insert_obs_with_has_corrections(d_obs_data[i + glo_valid_obs],
+                                                            gnss_observables_iter->second,
+                                                            gps_cnav_ephemeris_iter->second.WN,
+                                                            d_rtklib_band_index.at(rtklib_sig),
+                                                            0,
+                                                            eph_data[i].apply_has_corrections);
                                                         found_existing_obs = true;
                                                         break;
                                                     }
@@ -2727,10 +2665,12 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                                                 obsd_t newobs = {{0, 0}, '0', '0', {}, {},
                                                     {default_code_, default_code_, default_code_},
                                                     {}, {0.0, 0.0, 0.0}, {}, {}, {}};
-                                                d_obs_data[valid_obs + glo_valid_obs] = insert_obs_to_rtklib(newobs,
+                                                d_obs_data[valid_obs + glo_valid_obs] = insert_obs_with_has_corrections(newobs,
                                                     gnss_observables_iter->second,
                                                     gps_cnav_ephemeris_iter->second.WN,
-                                                    d_rtklib_band_index.at(rtklib_sig));
+                                                    d_rtklib_band_index.at(rtklib_sig),
+                                                    0,
+                                                    false);
                                                 valid_obs++;
                                             }
                                     }

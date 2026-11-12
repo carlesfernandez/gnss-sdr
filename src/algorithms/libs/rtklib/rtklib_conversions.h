@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 /** \addtogroup PVT
@@ -87,6 +88,34 @@ public:
     uint8_t phase_discontinuity_indicator{};
     bool phase_bias_discontinuity{};
     bool code_bias_available{};
+    bool phase_bias_available{};
+};
+
+
+/*!
+ * \brief Tracks the HAS corrections applied to the carrier phase of each
+ * signal. Turning the HAS orbit and clock corrections or a phase bias on or
+ * off steps the carrier phase (by up to 10.23 cycles for a phase bias, HAS SIS
+ * ICD 1.0 Section 7.5), which the solver must handle as a cycle slip.
+ */
+class HAS_carrier_continuity
+{
+public:
+    HAS_carrier_continuity() = default;
+
+    /*!
+     * \brief Records the HAS corrections applied to the carrier phase of a
+     * signal of a satellite in the current epoch
+     * \param sat RTKLIB satellite number
+     * \param signal GNSS-SDR two-character signal identifier
+     * \param orbit_clock_applied whether the HAS orbit and clock corrections are applied
+     * \param phase_bias_applied whether a HAS phase bias is applied
+     * \return true if they differ from the previous observation of the signal
+     */
+    bool changed(int sat, const std::string& signal, bool orbit_clock_applied, bool phase_bias_applied);
+
+private:
+    std::map<std::pair<int, std::string>, std::pair<bool, bool>> d_states;
 };
 
 

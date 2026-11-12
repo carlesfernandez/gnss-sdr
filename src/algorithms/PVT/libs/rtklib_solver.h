@@ -298,6 +298,19 @@ private:
     void clear_applied_has_phase_bias_discontinuity(const HAS_obs_corrections* has_correction, int prn);
 
     /*!
+     * Inserts a GPS, QZSS or Galileo observation into its RTKLIB record. With
+     * a HAS-corrected ephemeris, it also gets its HAS code and phase biases.
+     * A change in the HAS corrections applied to its carrier phase since the
+     * previous epoch is flagged as a cycle slip.
+     */
+    obsd_t insert_obs_with_has_corrections(obsd_t& rtklib_obs,
+        const Gnss_Synchro& gnss_synchro,
+        int week,
+        int band,
+        int ref_week,
+        bool has_corrected_ephemeris);
+
+    /*!
      * Substitutes a base-stream broadcast ephemeris for a satellite whose
      * navigation message the rover has not decoded yet, inserting both the
      * ephemeris and the observation. Owns the per-system week derivation.
@@ -343,6 +356,10 @@ private:
     std::map<std::string, std::map<int, bool>> d_has_phase_bias_discontinuity_map;                // first key is signal, second key is PRN
 
     std::map<std::string, std::map<int, HAS_obs_corrections>> d_has_obs_corr_map;  // first key is signal, second key is PRN
+
+    // HAS corrections applied to each carrier phase in the previous epoch. Kept
+    // across clear_has_corrections(), since dropping them is also a step
+    HAS_carrier_continuity d_has_carrier_continuity;
 
     // Orbit and clock corrections of the satellites selected by get_has_biases() in the current epoch
     std::map<std::string, std::map<int, HAS_orbit_corrections>> d_has_orbit_corrections_applied_map;  // first key is system, second key is PRN

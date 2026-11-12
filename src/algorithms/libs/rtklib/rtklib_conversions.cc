@@ -34,6 +34,7 @@
 #include "gps_ephemeris.h"           // for Gps_Ephemeris
 #include "rtklib_rtkcmn.h"
 #include <cmath>
+#include <utility>
 #include <vector>
 
 namespace
@@ -143,6 +144,23 @@ static int32_t gps_cnav_ura_to_rtklib_sva(int32_t uraed, int32_t uraned0)
         }
 
     return 15;
+}
+
+
+bool HAS_carrier_continuity::changed(int sat, const std::string& signal, bool orbit_clock_applied, bool phase_bias_applied)
+{
+    const auto state = std::make_pair(orbit_clock_applied, phase_bias_applied);
+    const auto key = std::make_pair(sat, signal);
+    const auto it = d_states.find(key);
+    if (it == d_states.end())
+        {
+            // first observation of the signal: its ambiguity starts here
+            d_states.insert(std::make_pair(key, state));
+            return false;
+        }
+    const bool state_changed = it->second != state;
+    it->second = state;
+    return state_changed;
 }
 
 

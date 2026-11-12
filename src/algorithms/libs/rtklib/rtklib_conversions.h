@@ -92,6 +92,12 @@ public:
 
 eph_t eph_to_rtklib(const Galileo_Ephemeris& gal_eph);
 
+/*!
+ * \brief Galileo ephemeris with HAS orbit and clock corrections. They are
+ * applied, and the BGDs dropped, only to an I/NAV ephemeris with the corrected
+ * issue of data, when both the orbit and the clock corrections exist for the
+ * same Mask ID and IOD Set ID
+ */
 eph_t eph_to_rtklib(const Galileo_Ephemeris& gal_eph,
     const std::map<int, HAS_orbit_corrections>& orbit_correction_map,
     const std::map<int, HAS_clock_corrections>& clock_correction_map);

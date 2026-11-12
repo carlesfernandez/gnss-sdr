@@ -215,6 +215,18 @@ public:
     bool select_galileo_ephemeris(uint32_t prn, const std::string& signal, uint32_t observation_tow,
         Galileo_Ephemeris& ephemeris, bool& from_reduced_ced) const;
 
+    /*!
+     * \brief I/NAV ephemeris of a satellite with HAS corrections in the current
+     * epoch (see has_corrections_applied()). HAS only corrects the I/NAV orbit
+     * and clock (HAS SIS ICD 1.0 Table 21), and its code biases make every
+     * signal consistent with the refined clock, so the PVT solution uses this
+     * ephemeris for all the signals of the satellite, whatever the primary
+     * Galileo navigation service.
+     * \return false if the satellite has no HAS corrections, or no usable
+     * I/NAV ephemeris with the issue of data they correct
+     */
+    bool select_galileo_has_ephemeris(uint32_t prn, uint32_t observation_tow, Galileo_Ephemeris& ephemeris) const;
+
     sol_t pvt_sol{};
     std::array<ssat_t, MAXSAT> pvt_ssat{};
 

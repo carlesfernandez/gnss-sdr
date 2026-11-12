@@ -542,7 +542,10 @@ eph_t eph_to_rtklib(const Galileo_Ephemeris& gal_eph,
     rtklib_sat.toc = gpst2time(rtklib_sat.week, toc);
     rtklib_sat.ttr = gpst2time(rtklib_sat.week, tow);
 
-    if (!orbit_correction_map.empty() && !clock_correction_map.empty())
+    // HAS corrects only the Galileo I/NAV orbit and clock (HAS SIS ICD 1.0
+    // Table 21): the F/NAV clock refers to another ionosphere-free pair
+    if (gal_eph.nav_message_type == Galileo_Nav_Message_Type::INAV &&
+        !orbit_correction_map.empty() && !clock_correction_map.empty())
         {
             int count_has_corrections = 0;
             const auto it_orbit = orbit_correction_map.find(static_cast<int>(gal_eph.PRN));

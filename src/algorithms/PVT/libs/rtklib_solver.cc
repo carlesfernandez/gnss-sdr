@@ -705,8 +705,9 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                         }
                 }
 
-            // for each satellite in Galileo ephemeris
-            for (const auto &galeph : galileo_ephemeris_store.by_source(d_galileo_nav_message_type_for_pvt))
+            // for each satellite in Galileo I/NAV ephemeris, the only Galileo
+            // navigation message corrected by HAS (HAS SIS ICD 1.0 Table 21)
+            for (const auto &galeph : galileo_ephemeris_store.by_source(Galileo_Nav_Message_Type::INAV))
                 {
                     int prn = galeph.second.PRN;
                     int32_t sis_iod = galeph.second.IOD_ephemeris;
@@ -782,9 +783,9 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                         }
                 }
 
-            // for each satellite in Galileo ephemeris
+            // for each satellite in Galileo I/NAV ephemeris
             const auto gal_prns = new_has_data.get_PRNs_in_mask(gal_str);
-            for (const auto &galeph : galileo_ephemeris_store.by_source(d_galileo_nav_message_type_for_pvt))
+            for (const auto &galeph : galileo_ephemeris_store.by_source(Galileo_Nav_Message_Type::INAV))
                 {
                     int prn = galeph.second.PRN;
                     if (std::find(gal_prns.cbegin(), gal_prns.cend(), prn) == gal_prns.cend())
@@ -885,7 +886,7 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                 {
                     const auto gal_sys_index = static_cast<uint8_t>(std::distance(systems.cbegin(), gal_sys_it));
                     const auto gal_subset_prns = new_has_data.get_PRNs_in_submask(gal_sys_index);
-                    for (const auto &galeph : galileo_ephemeris_store.by_source(d_galileo_nav_message_type_for_pvt))
+                    for (const auto &galeph : galileo_ephemeris_store.by_source(Galileo_Nav_Message_Type::INAV))
                         {
                             int prn = galeph.second.PRN;
                             if (std::find(gal_subset_prns.cbegin(), gal_subset_prns.cend(), prn) == gal_subset_prns.cend())
@@ -1151,9 +1152,9 @@ void Rtklib_Solver::check_has_orbit_clock_validity(const std::map<int, Gnss_Sync
             else if (it.second.System == 'E')
                 {
                     system = "Galileo";
-                    const auto &galileo_ephemeris_map = galileo_ephemeris_store.by_source(d_galileo_nav_message_type_for_pvt);
-                    auto eph_it = galileo_ephemeris_map.find(it.second.PRN);
-                    if (eph_it != galileo_ephemeris_map.end())
+                    const auto &inav_ephemerides = galileo_ephemeris_store.by_source(Galileo_Nav_Message_Type::INAV);
+                    auto eph_it = inav_ephemerides.find(it.second.PRN);
+                    if (eph_it != inav_ephemerides.end())
                         {
                             sis_iod = static_cast<uint16_t>(eph_it->second.IOD_ephemeris);
                             have_sis_iod = true;
@@ -1278,7 +1279,7 @@ void Rtklib_Solver::get_has_biases(const std::map<int, Gnss_Synchro> &obs_map)
                 }
         }
 
-    const auto &primary_galileo_ephemerides = galileo_ephemeris_store.by_source(d_galileo_nav_message_type_for_pvt);
+    const auto &inav_ephemerides = galileo_ephemeris_store.by_source(Galileo_Nav_Message_Type::INAV);
     for (const auto &satellite : satellites)
         {
             const char system_id = satellite.first.first;
@@ -1290,8 +1291,8 @@ void Rtklib_Solver::get_has_biases(const std::map<int, Gnss_Synchro> &obs_map)
             uint16_t sis_iod = 0;
             if (system_id == 'E')
                 {
-                    const auto eph_it = primary_galileo_ephemerides.find(prn);
-                    if (eph_it == primary_galileo_ephemerides.cend())
+                    const auto eph_it = inav_ephemerides.find(prn);
+                    if (eph_it == inav_ephemerides.cend())
                         {
                             continue;
                         }
@@ -1363,6 +1364,30 @@ bool Rtklib_Solver::has_corrections_applied(const std::string &system, int prn) 
     const auto system_it = d_has_orbit_corrections_applied_map.find(system);
     return system_it != d_has_orbit_corrections_applied_map.cend() &&
            system_it->second.find(prn) != system_it->second.cend();
+}
+
+
+bool Rtklib_Solver::select_galileo_has_ephemeris(uint32_t prn, uint32_t observation_tow, Galileo_Ephemeris &ephemeris) const
+{
+    const auto system_it = d_has_orbit_corrections_applied_map.find("Galileo");
+    if (system_it == d_has_orbit_corrections_applied_map.cend())
+        {
+            return false;
+        }
+    const auto orbit_it = system_it->second.find(static_cast<int>(prn));
+    if (orbit_it == system_it->second.cend())
+        {
+            return false;
+        }
+    const Galileo_Ephemeris *inav_ephemeris = galileo_ephemeris_store.find(static_cast<int>(prn), Galileo_Nav_Message_Type::INAV);
+    if (inav_ephemeris == nullptr ||
+        static_cast<uint16_t>(inav_ephemeris->IOD_ephemeris) != orbit_it->second.iod ||
+        !galileo_ephemeris_is_usable(*inav_ephemeris, observation_tow))
+        {
+            return false;
+        }
+    ephemeris = *inav_ephemeris;
+    return true;
 }
 
 
@@ -2317,9 +2342,14 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                         const int prn = static_cast<int>(gnss_observables_iter->second.PRN);
                         Galileo_Ephemeris selected_galileo_ephemeris;
                         bool selected_from_reduced_ced = false;
-                        const bool has_selected_galileo_ephemeris = select_galileo_ephemeris(
-                            gnss_observables_iter->second.PRN, sig_, obs_tow,
-                            selected_galileo_ephemeris, selected_from_reduced_ced);
+                        // HAS corrects the I/NAV orbit and clock, and its code biases make
+                        // every signal consistent with the refined clock, so a corrected
+                        // satellite uses its I/NAV ephemeris whatever the primary service
+                        const bool has_selected_galileo_ephemeris =
+                            (is_galileo_signal_used_in_pvt(sig_) &&
+                                select_galileo_has_ephemeris(gnss_observables_iter->second.PRN, obs_tow, selected_galileo_ephemeris)) ||
+                            select_galileo_ephemeris(gnss_observables_iter->second.PRN, sig_, obs_tow,
+                                selected_galileo_ephemeris, selected_from_reduced_ced);
                         // the do-not-use exclusion must hold whether the ephemeris
                         // comes from the rover or from the base stream: checking it
                         // only for a selected rover ephemeris would let the

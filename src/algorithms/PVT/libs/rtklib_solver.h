@@ -173,6 +173,12 @@ public:
     void store_has_data(const Galileo_HAS_data& new_has_data);
     void clear_has_corrections();
     void update_has_corrections(const std::map<int, Gnss_Synchro>& obs_map);
+
+    //! true if the last call to update_has_corrections() selected the HAS
+    //! orbit, clock and code bias corrections for the satellite ("GPS" or
+    //! "Galileo"): they are all valid in the same Mask ID and IOD Set ID, and
+    //! every signal of the satellite used in the PVT solution has a code bias
+    bool has_corrections_applied(const std::string& system, int prn) const;
     void store_sbas_message(const Sbas_Raw_Message& message);
     void store_gps_ephemeris(const Gps_Ephemeris& ephemeris);
     void clear_gps_ephemerides();
@@ -266,6 +272,15 @@ private:
     void update_galileo_observation_wavelengths(const obsd_t& observation);
 
     void check_has_orbit_clock_validity(const std::map<int, Gnss_Synchro>& obs_map);
+
+    /*!
+     * Selects the satellites that get HAS corrections in this epoch and their
+     * code and phase biases. The broadcast group delays are replaced by the
+     * HAS code biases, and the HAS-refined clock is only consistent with
+     * bias-corrected pseudoranges (HAS SIS ICD 1.0 Sections 7.3 and 7.4), so
+     * a satellite keeps its broadcast orbit, clock and group delays unless
+     * every signal it contributes to the PVT solution has a code bias.
+     */
     void get_has_biases(const std::map<int, Gnss_Synchro>& obs_map);
     void get_current_has_obs_correction(const std::string& signal, uint32_t tow_obs, int prn, uint8_t mask_id, uint8_t iod_set_id);
     void clear_applied_has_phase_bias_discontinuity(const HAS_obs_corrections* has_correction, int prn);
@@ -273,10 +288,10 @@ private:
     /*!
      * Substitutes a base-stream broadcast ephemeris for a satellite whose
      * navigation message the rover has not decoded yet, inserting both the
-     * ephemeris and the observation. Owns the per-system week derivation and
-     * mirrors the rover-decoded path's HAS-correction handling, so the two
-     * conversion policies cannot drift. Returns false when the base stream
-     * has no ephemeris for the satellite.
+     * ephemeris and the observation. Owns the per-system week derivation.
+     * The substituted ephemeris carries no HAS orbit and clock corrections,
+     * so, as on the rover-decoded path, the observation gets no HAS biases.
+     * Returns false when the base stream has no ephemeris for the satellite.
      */
     bool substitute_base_ephemeris(const Ntrip_Rtcm_Snapshot* fixed_base,
         int sat,
@@ -316,6 +331,10 @@ private:
     std::map<std::string, std::map<int, bool>> d_has_phase_bias_discontinuity_map;                // first key is signal, second key is PRN
 
     std::map<std::string, std::map<int, HAS_obs_corrections>> d_has_obs_corr_map;  // first key is signal, second key is PRN
+
+    // Orbit and clock corrections of the satellites selected by get_has_biases() in the current epoch
+    std::map<std::string, std::map<int, HAS_orbit_corrections>> d_has_orbit_corrections_applied_map;  // first key is system, second key is PRN
+    std::map<std::string, std::map<int, HAS_clock_corrections>> d_has_clock_corrections_applied_map;  // first key is system, second key is PRN
 
     std::string d_dump_filename;
     std::ofstream d_dump_file;

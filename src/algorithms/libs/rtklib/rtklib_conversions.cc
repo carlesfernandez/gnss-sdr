@@ -38,27 +38,6 @@
 
 namespace
 {
-const HAS_obs_corrections* find_has_obs_correction(const std::map<std::string, std::map<int, HAS_obs_corrections>>& has_obs_corr,
-    const std::vector<std::string>& signal_candidates,
-    int prn)
-{
-    for (const auto& signal : signal_candidates)
-        {
-            const auto signal_it = has_obs_corr.find(signal);
-            if (signal_it == has_obs_corr.cend())
-                {
-                    continue;
-                }
-
-            const auto prn_it = signal_it->second.find(prn);
-            if (prn_it != signal_it->second.cend())
-                {
-                    return &prn_it->second;
-                }
-        }
-    return nullptr;
-}
-
 // Resolves a week number known only mod `cycle` (256 for the 8-bit GPS
 // almanac WNa, 4 for the 2-bit Galileo WNa) to the full week closest to
 // ref_week; generalizes adjgpsweek(). ref_week <= 0 (no reference) returns
@@ -164,6 +143,72 @@ static int32_t gps_cnav_ura_to_rtklib_sva(int32_t uraed, int32_t uraned0)
         }
 
     return 15;
+}
+
+
+std::vector<std::string> has_signal_candidates(char system, const std::string& signal)
+{
+    switch (system)
+        {
+        case 'G':
+            if (signal == "1C")
+                {
+                    return {"L1 C/A"};
+                }
+            if (signal == "2S")
+                {
+                    return {"L2 CM", "L2 CL", "L2 CM+CL", "L2 P"};
+                }
+            if (signal == "L5")
+                {
+                    return {"L5 I", "L5 Q", "L5 I + L5 Q"};
+                }
+            break;
+        case 'E':
+            if (signal == "1B")
+                {
+                    return {"E1-B I/NAV OS", "E1-C", "E1-B + E1-C"};
+                }
+            if (signal == "5X")
+                {
+                    return {"E5a-I F/NAV OS", "E5a-Q", "E5a-I+E5a-Q"};
+                }
+            if (signal == "7X")
+                {
+                    return {"E5b-I I/NAV OS", "E5b-Q", "E5b-I+E5b-Q"};
+                }
+            if (signal == "E6")
+                {
+                    return {"E6-B C/NAV HAS", "E6-C", "E6-B + E6-C"};
+                }
+            break;
+        default:
+            break;
+        }
+    return {};
+}
+
+
+const HAS_obs_corrections* find_has_obs_correction(const std::map<std::string, std::map<int, HAS_obs_corrections>>& has_obs_corr,
+    char system,
+    const std::string& signal,
+    int prn)
+{
+    for (const auto& has_signal : has_signal_candidates(system, signal))
+        {
+            const auto signal_it = has_obs_corr.find(has_signal);
+            if (signal_it == has_obs_corr.cend())
+                {
+                    continue;
+                }
+
+            const auto prn_it = signal_it->second.find(prn);
+            if (prn_it != signal_it->second.cend())
+                {
+                    return &prn_it->second;
+                }
+        }
+    return nullptr;
 }
 
 
@@ -326,58 +371,8 @@ obsd_t insert_obs_to_rtklib(obsd_t& rtklib_obs,
 
     if (!has_obs_corr.empty())
         {
-            const HAS_obs_corrections* has_correction = nullptr;
-            const int prn = static_cast<int>(gnss_synchro.PRN);
-            switch (gnss_synchro.System)
-                {
-                case 'G':
-                    {
-                        if (sig_ == "1C")
-                            {
-                                const std::vector<std::string> signal_candidates = {"L1 C/A"};
-                                has_correction = find_has_obs_correction(has_obs_corr, signal_candidates, prn);
-                            }
-                        else if (sig_ == "2S")
-                            {
-                                const std::vector<std::string> signal_candidates = {"L2 CM", "L2 CL", "L2 CM+CL", "L2 P"};
-                                has_correction = find_has_obs_correction(has_obs_corr, signal_candidates, prn);
-                            }
-                        else if (sig_ == "L5")
-                            {
-                                const std::vector<std::string> signal_candidates = {"L5 I", "L5 Q", "L5 I + L5 Q"};
-                                has_correction = find_has_obs_correction(has_obs_corr, signal_candidates, prn);
-                            }
-                    }
-                    break;
-                case 'E':
-                    {
-                        if (sig_ == "1B")
-                            {
-                                const std::vector<std::string> signal_candidates = {"E1-B I/NAV OS", "E1-C", "E1-B + E1-C"};
-                                has_correction = find_has_obs_correction(has_obs_corr, signal_candidates, prn);
-                            }
-                        else if (sig_ == "5X")
-                            {
-                                const std::vector<std::string> signal_candidates = {"E5a-I F/NAV OS", "E5a-Q", "E5a-I+E5a-Q"};
-                                has_correction = find_has_obs_correction(has_obs_corr, signal_candidates, prn);
-                            }
-
-                        else if (sig_ == "7X")
-                            {
-                                const std::vector<std::string> signal_candidates = {"E5b-I I/NAV OS", "E5b-Q", "E5b-I+E5b-Q"};
-                                has_correction = find_has_obs_correction(has_obs_corr, signal_candidates, prn);
-                            }
-                        else if (sig_ == "E6")
-                            {
-                                const std::vector<std::string> signal_candidates = {"E6-B C/NAV HAS", "E6-C", "E6-B + E6-C"};
-                                has_correction = find_has_obs_correction(has_obs_corr, signal_candidates, prn);
-                            }
-                    }
-                    break;
-                default:
-                    break;
-                }
-
+            const HAS_obs_corrections* has_correction = find_has_obs_correction(has_obs_corr,
+                gnss_synchro.System, sig_, static_cast<int>(gnss_synchro.PRN));
             if (has_correction != nullptr)
                 {
                     rtklib_obs.P[band] += has_correction->code_bias_m;

@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <vector>
 
 /** \addtogroup PVT
  * \{ */
@@ -85,6 +86,7 @@ public:
     float phase_bias_cycle{};
     uint8_t phase_discontinuity_indicator{};
     bool phase_bias_discontinuity{};
+    bool code_bias_available{};
 };
 
 
@@ -161,6 +163,28 @@ geph_t eph_to_rtklib(const Glonass_Gnav_Ephemeris& glonass_gnav_eph, const Glona
  * \return observation code, CODE_NONE if the signal has no code for that slot
  */
 unsigned char rtklib_obs_code(char system, const std::string& signal, int band);
+
+/*!
+ * \brief HAS signals (HAS SIS ICD 1.0 Table 20) whose biases can correct an
+ * observation, in order of preference
+ * \param system GNSS-SDR system identifier ('G' or 'E')
+ * \param signal GNSS-SDR two-character signal identifier (e.g. "1C", "E6")
+ * \return HAS signal names, empty if HAS does not correct the signal
+ */
+std::vector<std::string> has_signal_candidates(char system, const std::string& signal);
+
+/*!
+ * \brief HAS correction that insert_obs_to_rtklib() applies to an observation
+ * \param has_obs_corr HAS corrections, first key is the HAS signal name, second key is the PRN
+ * \param system GNSS-SDR system identifier ('G' or 'E')
+ * \param signal GNSS-SDR two-character signal identifier
+ * \param prn satellite PRN
+ * \return correction of the first candidate signal with an entry for the PRN, nullptr if none
+ */
+const HAS_obs_corrections* find_has_obs_correction(const std::map<std::string, std::map<int, HAS_obs_corrections>>& has_obs_corr,
+    char system,
+    const std::string& signal,
+    int prn);
 
 obsd_t insert_obs_to_rtklib(obsd_t& rtklib_obs,
     const Gnss_Synchro& gnss_synchro,

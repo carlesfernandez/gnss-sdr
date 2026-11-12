@@ -142,6 +142,18 @@ eph_t eph_to_rtklib(const Gps_Ephemeris& gps_eph,
 eph_t eph_to_rtklib(const Gps_CNAV_Ephemeris& gps_cnav_eph);
 
 /*!
+ * \brief Copies the inter-signal corrections of a GPS CNAV ephemeris to the
+ * RTKLIB record of a satellite built from another navigation message, when
+ * an L2C or L5 observation joins it. An L1C first slot keeps its ISC_L1CP.
+ * A record with HAS corrections gets no ISCs: the HAS code biases replace the
+ * broadcast group delays (HAS SIS ICD 1.0 Section 7.4).
+ * \param eph RTKLIB ephemeris record of the satellite
+ * \param gps_cnav_eph CNAV ephemeris of the satellite
+ * \param first_slot_code observation code in the first slot of the record
+ */
+void add_gps_cnav_iscs(eph_t& eph, const Gps_CNAV_Ephemeris& gps_cnav_eph, unsigned char first_slot_code);
+
+/*!
  * \brief GPS L1C CNAV-2 ephemeris. The first ISC slot holds ISC_L1CP, the
  * correction of the L1C pilot observations (IS-GPS-800J, 3.5.3.9.1).
  */

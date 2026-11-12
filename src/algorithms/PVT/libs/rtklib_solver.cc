@@ -2635,16 +2635,9 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                                                         // 2. If found, attach the L2/L5 observation to the existing observation in RTKLIB structure
                                                         // The existing entry carries the LNAV ephemeris, which has no
                                                         // inter-signal corrections: take the ISCs from CNAV so the
-                                                        // dual-frequency correction in prange() can apply them.
-                                                        // An L1C first slot keeps its own ISC_L1CP.
-                                                        const unsigned char first_code = d_obs_data[i + glo_valid_obs].code[0];
-                                                        if (first_code != CODE_L1L && first_code != CODE_L1S && first_code != CODE_L1X)
-                                                            {
-                                                                eph_data[i].isc[0] = gps_cnav_ephemeris_iter->second.ISCL1;
-                                                            }
-                                                        eph_data[i].isc[1] = gps_cnav_ephemeris_iter->second.ISCL2;
-                                                        eph_data[i].isc[2] = gps_cnav_ephemeris_iter->second.ISCL5I;
-                                                        eph_data[i].isc[3] = gps_cnav_ephemeris_iter->second.ISCL5Q;
+                                                        // dual-frequency correction in prange() can apply them, unless
+                                                        // HAS code biases replace the broadcast group delays.
+                                                        add_gps_cnav_iscs(eph_data[i], gps_cnav_ephemeris_iter->second, d_obs_data[i + glo_valid_obs].code[0]);
                                                         d_obs_data[i + glo_valid_obs] = insert_obs_with_has_corrections(d_obs_data[i + glo_valid_obs],
                                                             gnss_observables_iter->second,
                                                             gps_cnav_ephemeris_iter->second.WN,

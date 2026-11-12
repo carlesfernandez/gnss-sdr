@@ -938,6 +938,26 @@ eph_t eph_to_rtklib(const Gps_CNAV_Ephemeris& gps_cnav_eph)
 }
 
 
+void add_gps_cnav_iscs(eph_t& eph, const Gps_CNAV_Ephemeris& gps_cnav_eph, unsigned char first_slot_code)
+{
+    if (eph.apply_has_corrections)
+        {
+            for (auto& isc : eph.isc)
+                {
+                    isc = 0.0;
+                }
+            return;
+        }
+    if (first_slot_code != CODE_L1L && first_slot_code != CODE_L1S && first_slot_code != CODE_L1X)
+        {
+            eph.isc[0] = gps_cnav_eph.ISCL1;
+        }
+    eph.isc[1] = gps_cnav_eph.ISCL2;
+    eph.isc[2] = gps_cnav_eph.ISCL5I;
+    eph.isc[3] = gps_cnav_eph.ISCL5Q;
+}
+
+
 eph_t eph_to_rtklib(const Gps_CNAV2_Ephemeris& gps_cnav2_eph)
 {
     // Orbit and clock parameters are those of CNAV, with toc = toe

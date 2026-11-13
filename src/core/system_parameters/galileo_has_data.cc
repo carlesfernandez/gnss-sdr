@@ -1033,15 +1033,27 @@ uint32_t Galileo_HAS_data::get_time_of_message_s() const
 }
 
 
-bool Galileo_HAS_data::has_validity_interval_at_tow(uint32_t valid_until, uint32_t tow)
+bool Galileo_HAS_data::has_validity_interval_at_tow(uint32_t valid_from, uint32_t valid_until, uint32_t tow)
 {
-    // valid_until is t_MT1 + VI (HAS SIS ICD 1.0 Sections 5.2.2.1 and 7.7),
-    // which exceeds the week length when the interval spans a week rollover.
-    // The time left until the end of the interval, taken modulo one week, is
-    // never longer than the largest validity interval (Table 23) while the
-    // correction is active. Any other value means that it already expired.
-    const uint32_t remaining_s = (valid_until % GALILEO_HAS_SECONDS_PER_WEEK + GALILEO_HAS_SECONDS_PER_WEEK - tow % GALILEO_HAS_SECONDS_PER_WEEK) % GALILEO_HAS_SECONDS_PER_WEEK;
-    return (remaining_s > 0U) && (remaining_s <= HAS_MSG_MAX_VALIDITY_INTERVAL_S);
+    // HAS SIS ICD 1.0 Section 5.2.2.1: validity starts at t_MT1 and lasts
+    // the block's own VI, not the maximum VI. Keep the end unwrapped.
+    if (valid_from >= GALILEO_HAS_SECONDS_PER_WEEK || valid_until <= valid_from ||
+        valid_until - valid_from > HAS_MSG_MAX_VALIDITY_INTERVAL_S || tow >= GALILEO_HAS_SECONDS_PER_WEEK)
+        {
+            return false;
+        }
+    const uint32_t elapsed_s = (tow + GALILEO_HAS_SECONDS_PER_WEEK - valid_from) % GALILEO_HAS_SECONDS_PER_WEEK;
+    return elapsed_s < valid_until - valid_from;
+}
+
+
+bool Galileo_HAS_data::has_validity_interval_expired_at_tow(uint32_t valid_until, uint32_t tow)
+{
+    // Distinguish expiry from an observation preceding t_MT1. Removing every
+    // inactive correction would discard a newly received block while buffered
+    // observations still precede its start. Interpret the end in the nearest week.
+    const uint32_t elapsed_s = (tow % GALILEO_HAS_SECONDS_PER_WEEK + GALILEO_HAS_SECONDS_PER_WEEK - valid_until % GALILEO_HAS_SECONDS_PER_WEEK) % GALILEO_HAS_SECONDS_PER_WEEK;
+    return elapsed_s < GALILEO_HAS_SECONDS_PER_WEEK / 2U;
 }
 
 

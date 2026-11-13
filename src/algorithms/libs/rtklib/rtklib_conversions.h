@@ -49,7 +49,8 @@ class HAS_clock_corrections
 public:
     HAS_clock_corrections() = default;
     float clock_correction_m{};
-    uint32_t valid_until{};
+    uint32_t valid_from{};   //!< t_MT1 in seconds of week
+    uint32_t valid_until{};  //!< t_MT1 + VI, possibly beyond the end of the week
     uint16_t iod{};
     uint8_t mask_id{};
     uint8_t iod_set_id{};
@@ -62,7 +63,8 @@ public:
     float radial_m{};
     float in_track_m{};
     float cross_track_m{};
-    uint32_t valid_until{};
+    uint32_t valid_from{};   //!< t_MT1 in seconds of week
+    uint32_t valid_until{};  //!< t_MT1 + VI, possibly beyond the end of the week
     uint16_t iod{};
     uint8_t mask_id{};
     uint8_t iod_set_id{};
@@ -73,7 +75,8 @@ class HAS_bias_corrections
 public:
     HAS_bias_corrections() = default;
     float bias{};
-    uint32_t valid_until{};
+    uint32_t valid_from{};   //!< t_MT1 in seconds of week
+    uint32_t valid_until{};  //!< t_MT1 + VI, possibly beyond the end of the week
     uint8_t mask_id{};
     uint8_t iod_set_id{};
 };
@@ -95,8 +98,9 @@ public:
 /*!
  * \brief Tracks the HAS corrections applied to the carrier phase of each
  * signal. Turning the HAS orbit and clock corrections or a phase bias on or
- * off steps the carrier phase (by up to 10.23 cycles for a phase bias, HAS SIS
- * ICD 1.0 Section 7.5), which the solver must handle as a cycle slip.
+ * off, or switching the selected HAS signal, steps the carrier phase (by up
+ * to 10.23 cycles for a phase bias, HAS SIS ICD 1.0 Section 7.5), which the
+ * solver must handle as a cycle slip.
  */
 class HAS_carrier_continuity
 {
@@ -109,13 +113,13 @@ public:
      * \param sat RTKLIB satellite number
      * \param signal GNSS-SDR two-character signal identifier
      * \param orbit_clock_applied whether the HAS orbit and clock corrections are applied
-     * \param phase_bias_applied whether a HAS phase bias is applied
+     * \param phase_bias_signal selected HAS signal name, or empty if no phase bias is applied
      * \return true if they differ from the previous observation of the signal
      */
-    bool changed(int sat, const std::string& signal, bool orbit_clock_applied, bool phase_bias_applied);
+    bool changed(int sat, const std::string& signal, bool orbit_clock_applied, const std::string& phase_bias_signal);
 
 private:
-    std::map<std::pair<int, std::string>, std::pair<bool, bool>> d_states;
+    std::map<std::pair<int, std::string>, std::pair<bool, std::string>> d_states;
 };
 
 
@@ -226,7 +230,7 @@ std::vector<std::string> has_signal_candidates(char system, const std::string& s
  * \param system GNSS-SDR system identifier ('G' or 'E')
  * \param signal GNSS-SDR two-character signal identifier
  * \param prn satellite PRN
- * \return correction of the first candidate signal with an entry for the PRN, nullptr if none
+ * \return correction of the first candidate with an available code bias for the PRN, nullptr if none
  */
 const HAS_obs_corrections* find_has_obs_correction(const std::map<std::string, std::map<int, HAS_obs_corrections>>& has_obs_corr,
     char system,

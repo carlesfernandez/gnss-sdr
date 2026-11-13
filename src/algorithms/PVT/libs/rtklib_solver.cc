@@ -647,7 +647,7 @@ void Rtklib_Solver::clear_has_corrections()
 {
     d_has_orbit_corrections_store_map.clear();
     d_has_clock_corrections_store_map.clear();
-    d_has_satellite_do_not_use_until.clear();
+    d_has_satellite_do_not_use_intervals.clear();
     d_has_code_bias_store_map.clear();
     d_has_phase_bias_store_map.clear();
     d_has_phase_discontinuity_indicator_store_map.clear();
@@ -697,6 +697,7 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                             orbit_correction.radial_m = radial_m;
                             orbit_correction.in_track_m = in_track_m;
                             orbit_correction.cross_track_m = cross_track_m;
+                            orbit_correction.valid_from = tmt;
                             orbit_correction.valid_until = tmt +
                                                            new_has_data.get_validity_interval_s(new_has_data.validity_interval_index_orbit_corrections);
                             orbit_correction.iod = gnss_iod;
@@ -729,6 +730,7 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                             orbit_correction.radial_m = radial_m;
                             orbit_correction.in_track_m = in_track_m;
                             orbit_correction.cross_track_m = cross_track_m;
+                            orbit_correction.valid_from = tmt;
                             orbit_correction.valid_until = tmt +
                                                            new_has_data.get_validity_interval_s(new_has_data.validity_interval_index_orbit_corrections);
                             orbit_correction.iod = gnss_iod;
@@ -742,6 +744,8 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
             LOG(INFO) << "Received HAS clock fullset corrections";
             const uint32_t valid_until = tmt +
                                          new_has_data.get_validity_interval_s(new_has_data.validity_interval_index_clock_fullset_corrections);
+            update_has_do_not_use(new_has_data, gps_str, false, valid_until);
+            update_has_do_not_use(new_has_data, gal_str, false, valid_until);
             const auto gps_prns = new_has_data.get_PRNs_in_mask(gps_str);
             for (const auto &gpseph : gps_ephemeris_map)
                 {
@@ -761,20 +765,16 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                                 (it->second.iod_set_id == new_has_data.header.iod_set_id))
                                 {
                                     float clock_correction_mult_m = new_has_data.get_clock_correction_mult_m(gps_str, prn);
-                                    if (Galileo_HAS_data::is_clock_do_not_use(clock_correction_mult_m))
-                                        {
-                                            d_has_clock_corrections_store_map[gps_str].erase(prn);
-                                            d_has_satellite_do_not_use_until[gps_str][prn] = valid_until;
-                                            continue;
-                                        }
-                                    if (Galileo_HAS_data::is_clock_unavailable(clock_correction_mult_m))
+                                    // do-not-use flags were handled by update_has_do_not_use()
+                                    if (Galileo_HAS_data::is_clock_do_not_use(clock_correction_mult_m) ||
+                                        Galileo_HAS_data::is_clock_unavailable(clock_correction_mult_m))
                                         {
                                             d_has_clock_corrections_store_map[gps_str].erase(prn);
                                             continue;
                                         }
-                                    d_has_satellite_do_not_use_until[gps_str].erase(prn);
                                     auto &clock_correction = d_has_clock_corrections_store_map[gps_str][prn];
                                     clock_correction.clock_correction_m = clock_correction_mult_m;
+                                    clock_correction.valid_from = tmt;
                                     clock_correction.valid_until = valid_until;
                                     clock_correction.iod = gnss_iod;
                                     clock_correction.mask_id = new_has_data.header.mask_id;
@@ -806,20 +806,16 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                                     // std::cout << "Galileo Satellite " << prn
                                     //           << " clock correction=" << new_has_data.get_clock_correction_mult_m(gal_str, prn)
                                     //           << std::endl;
-                                    if (Galileo_HAS_data::is_clock_do_not_use(clock_correction_mult_m))
-                                        {
-                                            d_has_clock_corrections_store_map[gal_str].erase(prn);
-                                            d_has_satellite_do_not_use_until[gal_str][prn] = valid_until;
-                                            continue;
-                                        }
-                                    if (Galileo_HAS_data::is_clock_unavailable(clock_correction_mult_m))
+                                    // do-not-use flags were handled by update_has_do_not_use()
+                                    if (Galileo_HAS_data::is_clock_do_not_use(clock_correction_mult_m) ||
+                                        Galileo_HAS_data::is_clock_unavailable(clock_correction_mult_m))
                                         {
                                             d_has_clock_corrections_store_map[gal_str].erase(prn);
                                             continue;
                                         }
-                                    d_has_satellite_do_not_use_until[gal_str].erase(prn);
                                     auto &clock_correction = d_has_clock_corrections_store_map[gal_str][prn];
                                     clock_correction.clock_correction_m = clock_correction_mult_m;
+                                    clock_correction.valid_from = tmt;
                                     clock_correction.valid_until = valid_until;
                                     clock_correction.iod = gnss_iod;
                                     clock_correction.mask_id = new_has_data.header.mask_id;
@@ -833,6 +829,8 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
             LOG(INFO) << "Received HAS clock subset corrections";
             const uint32_t valid_until = tmt +
                                          new_has_data.get_validity_interval_s(new_has_data.validity_interval_index_clock_subset_corrections);
+            update_has_do_not_use(new_has_data, gps_str, true, valid_until);
+            update_has_do_not_use(new_has_data, gal_str, true, valid_until);
             const auto systems = new_has_data.get_systems_string();
 
             const auto gps_sys_it = std::find(systems.cbegin(), systems.cend(), gps_str);
@@ -858,20 +856,16 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                                         (it->second.iod_set_id == new_has_data.header.iod_set_id))
                                         {
                                             float clock_correction_mult_m = new_has_data.get_clock_subset_correction_mult_m(gps_str, prn);
-                                            if (Galileo_HAS_data::is_clock_do_not_use(clock_correction_mult_m))
-                                                {
-                                                    d_has_clock_corrections_store_map[gps_str].erase(prn);
-                                                    d_has_satellite_do_not_use_until[gps_str][prn] = valid_until;
-                                                    continue;
-                                                }
-                                            if (Galileo_HAS_data::is_clock_unavailable(clock_correction_mult_m))
+                                            // do-not-use flags were handled by update_has_do_not_use()
+                                            if (Galileo_HAS_data::is_clock_do_not_use(clock_correction_mult_m) ||
+                                                Galileo_HAS_data::is_clock_unavailable(clock_correction_mult_m))
                                                 {
                                                     d_has_clock_corrections_store_map[gps_str].erase(prn);
                                                     continue;
                                                 }
-                                            d_has_satellite_do_not_use_until[gps_str].erase(prn);
                                             auto &clock_correction = d_has_clock_corrections_store_map[gps_str][prn];
                                             clock_correction.clock_correction_m = clock_correction_mult_m;
+                                            clock_correction.valid_from = tmt;
                                             clock_correction.valid_until = valid_until;
                                             clock_correction.iod = gnss_iod;
                                             clock_correction.mask_id = new_has_data.header.mask_id;
@@ -904,20 +898,16 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                                         (it->second.iod_set_id == new_has_data.header.iod_set_id))
                                         {
                                             float clock_correction_mult_m = new_has_data.get_clock_subset_correction_mult_m(gal_str, prn);
-                                            if (Galileo_HAS_data::is_clock_do_not_use(clock_correction_mult_m))
-                                                {
-                                                    d_has_clock_corrections_store_map[gal_str].erase(prn);
-                                                    d_has_satellite_do_not_use_until[gal_str][prn] = valid_until;
-                                                    continue;
-                                                }
-                                            if (Galileo_HAS_data::is_clock_unavailable(clock_correction_mult_m))
+                                            // do-not-use flags were handled by update_has_do_not_use()
+                                            if (Galileo_HAS_data::is_clock_do_not_use(clock_correction_mult_m) ||
+                                                Galileo_HAS_data::is_clock_unavailable(clock_correction_mult_m))
                                                 {
                                                     d_has_clock_corrections_store_map[gal_str].erase(prn);
                                                     continue;
                                                 }
-                                            d_has_satellite_do_not_use_until[gal_str].erase(prn);
                                             auto &clock_correction = d_has_clock_corrections_store_map[gal_str][prn];
                                             clock_correction.clock_correction_m = clock_correction_mult_m;
+                                            clock_correction.valid_from = tmt;
                                             clock_correction.valid_until = valid_until;
                                             clock_correction.iod = gnss_iod;
                                             clock_correction.mask_id = new_has_data.header.mask_id;
@@ -946,6 +936,7 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                                 }
                             auto &code_bias_correction = d_has_code_bias_store_map[it][prn];
                             code_bias_correction.bias = code_bias_m;
+                            code_bias_correction.valid_from = tmt;
                             code_bias_correction.valid_until = valid_until;
                             code_bias_correction.mask_id = new_has_data.header.mask_id;
                             code_bias_correction.iod_set_id = new_has_data.header.iod_set_id;
@@ -965,6 +956,7 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                                 }
                             auto &code_bias_correction = d_has_code_bias_store_map[it][prn];
                             code_bias_correction.bias = code_bias_m;
+                            code_bias_correction.valid_from = tmt;
                             code_bias_correction.valid_until = valid_until;
                             code_bias_correction.mask_id = new_has_data.header.mask_id;
                             code_bias_correction.iod_set_id = new_has_data.header.iod_set_id;
@@ -993,6 +985,7 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                                 }
                             auto &phase_bias_correction = d_has_phase_bias_store_map[it][prn];
                             phase_bias_correction.bias = phase_bias_correction_cycles;
+                            phase_bias_correction.valid_from = tmt;
                             phase_bias_correction.valid_until = valid_until;
                             phase_bias_correction.mask_id = new_has_data.header.mask_id;
                             phase_bias_correction.iod_set_id = new_has_data.header.iod_set_id;
@@ -1026,6 +1019,7 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
                                 }
                             auto &phase_bias_correction = d_has_phase_bias_store_map[it][prn];
                             phase_bias_correction.bias = phase_bias_correction_cycles;
+                            phase_bias_correction.valid_from = tmt;
                             phase_bias_correction.valid_until = valid_until;
                             phase_bias_correction.mask_id = new_has_data.header.mask_id;
                             phase_bias_correction.iod_set_id = new_has_data.header.iod_set_id;
@@ -1047,6 +1041,47 @@ void Rtklib_Solver::store_has_data(const Galileo_HAS_data &new_has_data)
 }
 
 
+void Rtklib_Solver::update_has_do_not_use(const Galileo_HAS_data &new_has_data, const std::string &system, bool clock_subset, uint32_t valid_until)
+{
+    // HAS SIS ICD 1.0 Table 31: the satellite shall not be used, whatever
+    // the issue of data it refers to, and whether or not the receiver has
+    // its ephemeris or orbit corrections yet
+    std::vector<int> prns;
+    if (clock_subset)
+        {
+            const auto systems = new_has_data.get_systems_string();
+            const auto system_it = std::find(systems.cbegin(), systems.cend(), system);
+            if (system_it == systems.cend())
+                {
+                    return;
+                }
+            prns = new_has_data.get_PRNs_in_submask(static_cast<uint8_t>(std::distance(systems.cbegin(), system_it)));
+        }
+    else
+        {
+            prns = new_has_data.get_PRNs_in_mask(system);
+        }
+
+    for (const int prn : prns)
+        {
+            const float clock_correction_mult_m = clock_subset ? new_has_data.get_clock_subset_correction_mult_m(system, prn)
+                                                               : new_has_data.get_clock_correction_mult_m(system, prn);
+            if (Galileo_HAS_data::is_clock_do_not_use(clock_correction_mult_m))
+                {
+                    d_has_clock_corrections_store_map[system].erase(prn);
+                    auto &interval = d_has_satellite_do_not_use_intervals[system][prn];
+                    interval.valid_from = new_has_data.get_time_of_message_s();
+                    interval.valid_until = valid_until;
+                }
+            else if (!Galileo_HAS_data::is_clock_unavailable(clock_correction_mult_m))
+                {
+                    // a clock correction for the satellite supersedes the flag
+                    d_has_satellite_do_not_use_intervals[system].erase(prn);
+                }
+        }
+}
+
+
 void Rtklib_Solver::update_has_corrections(const std::map<int, Gnss_Synchro> &obs_map)
 {
     this->check_has_orbit_clock_validity(obs_map);
@@ -1056,8 +1091,8 @@ void Rtklib_Solver::update_has_corrections(const std::map<int, Gnss_Synchro> &ob
 
 bool Rtklib_Solver::has_active_has_do_not_use(const std::string &system, int prn, uint32_t tow_obs) const
 {
-    const auto it_sys = d_has_satellite_do_not_use_until.find(system);
-    if (it_sys == d_has_satellite_do_not_use_until.cend())
+    const auto it_sys = d_has_satellite_do_not_use_intervals.find(system);
+    if (it_sys == d_has_satellite_do_not_use_intervals.cend())
         {
             return false;
         }
@@ -1066,7 +1101,7 @@ bool Rtklib_Solver::has_active_has_do_not_use(const std::string &system, int prn
         {
             return false;
         }
-    return Galileo_HAS_data::has_validity_interval_at_tow(it_prn->second, tow_obs);
+    return Galileo_HAS_data::has_validity_interval_at_tow(it_prn->second.valid_from, it_prn->second.valid_until, tow_obs);
 }
 
 
@@ -1082,7 +1117,7 @@ bool Rtklib_Solver::get_active_has_context(const std::string &system, int prn, u
         {
             return false;
         }
-    if (!Galileo_HAS_data::has_validity_interval_at_tow(orbit_prn_it->second.valid_until, tow_obs))
+    if (!Galileo_HAS_data::has_validity_interval_at_tow(orbit_prn_it->second.valid_from, orbit_prn_it->second.valid_until, tow_obs))
         {
             return false;
         }
@@ -1101,7 +1136,7 @@ bool Rtklib_Solver::get_active_has_context(const std::string &system, int prn, u
         {
             return false;
         }
-    if (!Galileo_HAS_data::has_validity_interval_at_tow(clock_prn_it->second.valid_until, tow_obs))
+    if (!Galileo_HAS_data::has_validity_interval_at_tow(clock_prn_it->second.valid_from, clock_prn_it->second.valid_until, tow_obs))
         {
             return false;
         }
@@ -1175,7 +1210,7 @@ void Rtklib_Solver::check_has_orbit_clock_validity(const std::map<int, Gnss_Sync
                     auto orbit_it = orbit_sys_it->second.find(prn);
                     if (orbit_it != orbit_sys_it->second.end())
                         {
-                            if (!Galileo_HAS_data::has_validity_interval_at_tow(orbit_it->second.valid_until, obs_tow) ||
+                            if (Galileo_HAS_data::has_validity_interval_expired_at_tow(orbit_it->second.valid_until, obs_tow) ||
                                 (have_sis_iod && orbit_it->second.iod != sis_iod))
                                 {
                                     erase_orbit = true;
@@ -1188,7 +1223,7 @@ void Rtklib_Solver::check_has_orbit_clock_validity(const std::map<int, Gnss_Sync
                     auto clock_it = clock_sys_it->second.find(prn);
                     if (clock_it != clock_sys_it->second.end())
                         {
-                            if (!Galileo_HAS_data::has_validity_interval_at_tow(clock_it->second.valid_until, obs_tow) ||
+                            if (Galileo_HAS_data::has_validity_interval_expired_at_tow(clock_it->second.valid_until, obs_tow) ||
                                 (have_sis_iod && clock_it->second.iod != sis_iod))
                                 {
                                     erase_clock = true;
@@ -1221,13 +1256,13 @@ void Rtklib_Solver::check_has_orbit_clock_validity(const std::map<int, Gnss_Sync
                     clock_sys_it->second.erase(prn);
                 }
 
-            auto dnu_sys_it = d_has_satellite_do_not_use_until.find(system);
-            if (dnu_sys_it != d_has_satellite_do_not_use_until.end())
+            auto dnu_sys_it = d_has_satellite_do_not_use_intervals.find(system);
+            if (dnu_sys_it != d_has_satellite_do_not_use_intervals.end())
                 {
                     auto dnu_it = dnu_sys_it->second.find(prn);
                     if (dnu_it != dnu_sys_it->second.end())
                         {
-                            if (!Galileo_HAS_data::has_validity_interval_at_tow(dnu_it->second, obs_tow))
+                            if (Galileo_HAS_data::has_validity_interval_expired_at_tow(dnu_it->second.valid_until, obs_tow))
                                 {
                                     dnu_sys_it->second.erase(prn);
                                 }
@@ -1400,7 +1435,7 @@ void Rtklib_Solver::get_current_has_obs_correction(const std::string &signal, ui
             if (code_bias_pair_it != code_bias_signal_it->second.end())
                 {
                     const auto &code_bias_correction = code_bias_pair_it->second;
-                    if (Galileo_HAS_data::has_validity_interval_at_tow(code_bias_correction.valid_until, tow_obs) &&
+                    if (Galileo_HAS_data::has_validity_interval_at_tow(code_bias_correction.valid_from, code_bias_correction.valid_until, tow_obs) &&
                         (code_bias_correction.mask_id == mask_id) &&
                         (code_bias_correction.iod_set_id == iod_set_id))
                         {
@@ -1418,7 +1453,7 @@ void Rtklib_Solver::get_current_has_obs_correction(const std::string &signal, ui
             if (phase_bias_pair_it != phase_bias_signal_it->second.end())
                 {
                     const auto &phase_bias_correction = phase_bias_pair_it->second;
-                    if (Galileo_HAS_data::has_validity_interval_at_tow(phase_bias_correction.valid_until, tow_obs) &&
+                    if (Galileo_HAS_data::has_validity_interval_at_tow(phase_bias_correction.valid_from, phase_bias_correction.valid_until, tow_obs) &&
                         (phase_bias_correction.mask_id == mask_id) &&
                         (phase_bias_correction.iod_set_id == iod_set_id))
                         {
@@ -1510,10 +1545,12 @@ obsd_t Rtklib_Solver::insert_obs_with_has_corrections(obsd_t &rtklib_obs,
                              : insert_obs_to_rtklib(rtklib_obs, gnss_synchro, week, band, ref_week);
     clear_applied_has_phase_bias_discontinuity(applied_has_correction, static_cast<int>(gnss_synchro.PRN));
 
-    // Turning the HAS orbit and clock corrections or the phase bias on or off
-    // steps the carrier phase: restart its ambiguity
-    const bool phase_bias_applied = applied_has_correction != nullptr && applied_has_correction->phase_bias_available;
-    if (d_has_carrier_continuity.changed(observation.sat, std::string(gnss_synchro.Signal, 2), has_corrected_ephemeris, phase_bias_applied))
+    // Turning corrections on or off, or selecting another HAS phase-bias
+    // signal, steps the carrier phase: restart its ambiguity
+    const std::string phase_bias_signal = applied_has_correction != nullptr && applied_has_correction->phase_bias_available
+                                              ? applied_has_correction->signal
+                                              : std::string{};
+    if (d_has_carrier_continuity.changed(observation.sat, std::string(gnss_synchro.Signal, 2), has_corrected_ephemeris, phase_bias_signal))
         {
             observation.LLI[band] |= 1U;
         }
@@ -2376,12 +2413,10 @@ bool Rtklib_Solver::get_PVT(const std::map<int, Gnss_Synchro> &gnss_observables_
                                 select_galileo_has_ephemeris(gnss_observables_iter->second.PRN, obs_tow, selected_galileo_ephemeris)) ||
                             select_galileo_ephemeris(gnss_observables_iter->second.PRN, sig_, obs_tow,
                                 selected_galileo_ephemeris, selected_from_reduced_ced);
-                        // the do-not-use exclusion must hold whether the ephemeris
-                        // comes from the rover or from the base stream: checking it
-                        // only for a selected rover ephemeris would let the
-                        // base-ephemeris substitution admit a HAS-flagged satellite
-                        // (the GPS block below checks it unconditionally too)
-                        if (!selected_from_reduced_ced && has_active_has_do_not_use(gal_str, prn, obs_tow))
+                        // the HAS do-not-use flag excludes the satellite whatever its
+                        // ephemeris: rover full or Reduced CED, or from the base stream
+                        // (HAS SIS ICD 1.0 Table 31; the GPS block below checks it too)
+                        if (has_active_has_do_not_use(gal_str, prn, obs_tow))
                             {
                                 break;
                             }

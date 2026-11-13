@@ -89,7 +89,8 @@ public:
     uint16_t get_gnss_iod(const std::string& system, int prn) const;                      //!< Get GNSS IOD from a given system ("GPS"/"Galileo") and PRN
     uint8_t get_gnss_id(int nsat) const;                                                  //!< Get GNSS ID from the nsat satellite
     uint8_t get_phase_discontinuity_indicator(const std::string& signal, int PRN) const;  //!< Get PDI for a given signal and PRN satellite
-    static bool has_validity_interval_at_tow(uint32_t valid_until, uint32_t tow);         //!< Check whether a validity end time (t_MT1 + VI, possibly beyond the end of the week) is active at the given TOW
+    static bool has_validity_interval_at_tow(uint32_t valid_from, uint32_t valid_until, uint32_t tow);  //!< Check [t_MT1, t_MT1 + VI), allowing week rollover
+    static bool has_validity_interval_expired_at_tow(uint32_t valid_until, uint32_t tow);               //!< Check expiry using the nearest week; future intervals are retained
     static bool is_orbit_radial_unavailable(float value);                                 //!< Check HAS radial correction unavailable sentinel
     static bool is_orbit_along_cross_unavailable(float value);                            //!< Check HAS along/cross-track correction unavailable sentinel
     static bool is_clock_unavailable(float value);                                        //!< Check whether a value returned by the clock correction getters flags data not available

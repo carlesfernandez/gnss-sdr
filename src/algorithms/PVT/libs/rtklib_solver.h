@@ -179,6 +179,11 @@ public:
     //! "Galileo"): they are all valid in the same Mask ID and IOD Set ID, and
     //! every signal of the satellite used in the PVT solution has a code bias
     bool has_corrections_applied(const std::string& system, int prn) const;
+
+    //! true if a HAS clock correction block flagged the satellite ("GPS" or
+    //! "Galileo") as not to be used (HAS SIS ICD 1.0 Table 31), and the
+    //! validity interval of the flag includes tow_obs
+    bool has_active_has_do_not_use(const std::string& system, int prn, uint32_t tow_obs) const;
     void store_sbas_message(const Sbas_Raw_Message& message);
     void store_gps_ephemeris(const Gps_Ephemeris& ephemeris);
     void clear_gps_ephemerides();
@@ -286,6 +291,13 @@ private:
     void check_has_orbit_clock_validity(const std::map<int, Gnss_Synchro>& obs_map);
 
     /*!
+     * Records the satellites of a system that a HAS clock full-set or subset
+     * block flags as not to be used, until the end of its validity interval,
+     * and lifts the flag of those with a clock correction.
+     */
+    void update_has_do_not_use(const Galileo_HAS_data& new_has_data, const std::string& system, bool clock_subset, uint32_t valid_until);
+
+    /*!
      * Selects the satellites that get HAS corrections in this epoch and their
      * code and phase biases. The broadcast group delays are replaced by the
      * HAS code biases, and the HAS-refined clock is only consistent with
@@ -325,7 +337,6 @@ private:
         std::vector<eph_t>& eph_data,
         int& valid_obs,
         int glo_valid_obs);
-    bool has_active_has_do_not_use(const std::string& system, int prn, uint32_t tow_obs) const;
     bool has_active_has_orbit_clock(const std::string& system, int prn, uint16_t sis_iod, uint32_t tow_obs) const;
     bool get_active_has_context(const std::string& system, int prn, uint16_t sis_iod, uint32_t tow_obs, uint8_t& mask_id, uint8_t& iod_set_id) const;
 
@@ -348,7 +359,12 @@ private:
 
     std::map<std::string, std::map<int, HAS_orbit_corrections>> d_has_orbit_corrections_store_map;  // first key is system, second key is PRN
     std::map<std::string, std::map<int, HAS_clock_corrections>> d_has_clock_corrections_store_map;  // first key is system, second key is PRN
-    std::map<std::string, std::map<int, uint32_t>> d_has_satellite_do_not_use_until;                // first key is system, second key is PRN
+    struct Has_Do_Not_Use_Interval
+    {
+        uint32_t valid_from{};
+        uint32_t valid_until{};
+    };
+    std::map<std::string, std::map<int, Has_Do_Not_Use_Interval>> d_has_satellite_do_not_use_intervals;  // first key is system, second key is PRN
 
     std::map<std::string, std::map<int, HAS_bias_corrections>> d_has_code_bias_store_map;         // first key is signal, second key is PRN
     std::map<std::string, std::map<int, HAS_bias_corrections>> d_has_phase_bias_store_map;        // first key is signal, second key is PRN

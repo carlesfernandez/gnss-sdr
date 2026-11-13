@@ -147,9 +147,9 @@ static int32_t gps_cnav_ura_to_rtklib_sva(int32_t uraed, int32_t uraned0)
 }
 
 
-bool HAS_carrier_continuity::changed(int sat, const std::string& signal, bool orbit_clock_applied, bool phase_bias_applied)
+bool HAS_carrier_continuity::changed(int sat, const std::string& signal, bool orbit_clock_applied, const std::string& phase_bias_signal)
 {
-    const auto state = std::make_pair(orbit_clock_applied, phase_bias_applied);
+    const auto state = std::make_pair(orbit_clock_applied, phase_bias_signal);
     const auto key = std::make_pair(sat, signal);
     const auto it = d_states.find(key);
     if (it == d_states.end())
@@ -221,7 +221,7 @@ const HAS_obs_corrections* find_has_obs_correction(const std::map<std::string, s
                 }
 
             const auto prn_it = signal_it->second.find(prn);
-            if (prn_it != signal_it->second.cend())
+            if (prn_it != signal_it->second.cend() && prn_it->second.code_bias_available)
                 {
                     return &prn_it->second;
                 }

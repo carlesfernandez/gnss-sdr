@@ -5026,7 +5026,7 @@ boost::posix_time::ptime Rtcm::compute_GPS_time(const Gps_CNAV_Ephemeris& eph, d
 boost::posix_time::ptime Rtcm::compute_Galileo_time(const Galileo_Ephemeris& eph, double obs_time) const
 {
     const double galileo_t = obs_time;
-    const boost::posix_time::time_duration t_duration = boost::posix_time::milliseconds(static_cast<long>((galileo_t + 604800 * static_cast<double>(eph.WN)) * 1000));  // NOLINT(google-runtime-int)
+    const boost::posix_time::time_duration t_duration = boost::posix_time::milliseconds(static_cast<int64_t>((galileo_t + 604800 * static_cast<double>(eph.WN)) * 1000));
     boost::posix_time::ptime p_time(boost::gregorian::date(1999, 8, 22), t_duration);
     return p_time;
 }
